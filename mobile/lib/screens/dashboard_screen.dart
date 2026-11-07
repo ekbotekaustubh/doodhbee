@@ -144,7 +144,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.between,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           const Text('⚡ Customer Quota Limit', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1E40AF))),
                           Text('$activeCount / $maxAllowed slots', style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF0284C7))),

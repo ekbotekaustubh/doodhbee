@@ -189,7 +189,7 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
                       children: [
                         Expanded(
                           child: DropdownButtonFormField<double>(
-                            value: _cowQty,
+                            initialValue: _cowQty,
                             decoration: const InputDecoration(labelText: 'Daily Qty', border: OutlineInputBorder()),
                             items: [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0]
                                 .map((q) => DropdownMenuItem(value: q, child: Text('$q L')))
@@ -231,7 +231,7 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
                       children: [
                         Expanded(
                           child: DropdownButtonFormField<double>(
-                            value: _bufQty,
+                            initialValue: _bufQty,
                             decoration: const InputDecoration(labelText: 'Daily Qty', border: OutlineInputBorder()),
                             items: [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0]
                                 .map((q) => DropdownMenuItem(value: q, child: Text('$q L')))

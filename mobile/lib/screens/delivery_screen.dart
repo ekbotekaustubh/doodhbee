@@ -111,7 +111,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.between,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
                         'Adjust: ${item.customerName}',
@@ -345,6 +345,42 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                     ),
                   ],
                 ),
+                if (_routes.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: ChoiceChip(
+                            label: const Text('All Routes'),
+                            selected: _selectedRoute == null,
+                            onSelected: (val) {
+                              if (val) {
+                                setState(() => _selectedRoute = null);
+                                _loadDeliveries();
+                              }
+                            },
+                          ),
+                        ),
+                        ..._routes.map(
+                          (r) => Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: ChoiceChip(
+                              label: Text(r),
+                              selected: _selectedRoute == r,
+                              onSelected: (val) {
+                                setState(() => _selectedRoute = val ? r : null);
+                                _loadDeliveries();
+                              },
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -420,7 +456,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
           children: [
             // Top Row: Customer Name & Phone
             Row(
-              mainAxisAlignment: MainAxisAlignment.between,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Expanded(
                   child: Column(
@@ -451,7 +487,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
 
             // Products & Quantity Info
             Row(
-              mainAxisAlignment: MainAxisAlignment.between,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

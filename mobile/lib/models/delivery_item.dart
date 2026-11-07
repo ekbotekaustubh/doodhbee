@@ -85,4 +85,26 @@ class DeliveryItem {
       synced: synced ?? this.synced,
     );
   }
+
+  Map<String, dynamic> toMap() {
+    return {
+      if (localId != null) 'local_id': localId,
+      if (serverId != null) 'server_id': serverId,
+      'customer_id': customerId,
+      'customer_name': customerName,
+      'customer_phone': customerPhone,
+      'address': address,
+      'route_name': routeName,
+      'product_id': productId,
+      'product_name': productName,
+      'unit': unit,
+      'delivery_date': deliveryDate,
+      'shift': shift,
+      'quantity': quantity,
+      'status': status,
+      'notes': notes,
+      'is_on_leave': isOnLeave ? 1 : 0,
+      'synced': synced ? 1 : 0,
+    };
+  }
 }

@@ -35,6 +35,8 @@ class Invoice {
     this.generatedAt,
   });
 
+  bool get isPaid => paymentStatus == 'paid';
+
   factory Invoice.fromJson(Map<String, dynamic> json) {
     return Invoice(
       id: json['id'] ?? 0,

@@ -16,7 +16,6 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   final ApiClient _api = ApiClient();
 
   Map<String, dynamic>? _invoice;
-  Map<String, dynamic>? _breakdown;
   List<dynamic> _payments = [];
   Map<String, dynamic>? _settings;
   bool _isLoading = true;
@@ -35,7 +34,6 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     if (res.success && res.data != null) {
       setState(() {
         _invoice = res.data['invoice'];
-        _breakdown = res.data['breakdown'];
         _payments = res.data['payments'] ?? [];
         _settings = res.data['settings'];
       });
@@ -121,7 +119,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: paymentMode,
+                initialValue: paymentMode,
                 decoration: const InputDecoration(labelText: 'Payment Mode', border: OutlineInputBorder()),
                 items: const [
                   DropdownMenuItem(value: 'cash', child: Text('💵 Cash')),
@@ -207,7 +205,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.between,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
                           inv['customer_name'] ?? 'Customer',

@@ -20,7 +20,7 @@ class AppTheme {
       colorScheme: ColorScheme.fromSeed(
         seedColor: primaryBlue,
         primary: primaryBlue,
-        background: background,
+        surface: background,
       ),
       scaffoldBackgroundColor: background,
       appBarTheme: const AppBarTheme(
@@ -35,7 +35,7 @@ class AppTheme {
           letterSpacing: -0.3,
         ),
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: cardBg,
         elevation: 1,
         shadowColor: Colors.black12,
