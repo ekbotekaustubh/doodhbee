@@ -64,6 +64,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen> {
     });
 
     if (res.success) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Batch invoices generated successfully!')),
       );

@@ -53,6 +53,7 @@ class _CustomerLeaveScreenState extends State<CustomerLeaveScreen> {
     });
 
     if (res.success) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Vacation paused from $startStr to $endStr')),
       );

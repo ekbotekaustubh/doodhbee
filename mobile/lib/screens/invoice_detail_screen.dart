@@ -55,6 +55,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
       }
     }
 
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Unable to launch WhatsApp')),
     );
@@ -150,7 +151,9 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                 });
 
                 if (res.success) {
-                  Navigator.pop(ctx);
+                  if (ctx.mounted) {
+                    Navigator.pop(ctx);
+                  }
                   _loadInvoiceDetail();
                 }
               },
