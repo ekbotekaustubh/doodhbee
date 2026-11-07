@@ -3,3 +3,5 @@ composer.phar
 .env
 /public/uploads/*
 !/public/uploads/.gitkeep
+/public/download/*
+!/public/download/.gitkeep
