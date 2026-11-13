@@ -8,9 +8,9 @@ function e(?string $value): string
     return htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
-function formatMoney(float|int|string $amount, string $symbol = '₹'): string
+function formatMoney(float|int|string|null $amount = 0, string $symbol = '₹'): string
 {
-    return $symbol . number_format((float)$amount, 2);
+    return $symbol . number_format((float)($amount ?? 0), 2);
 }
 
 function formatDate(?string $date, string $format = 'd M Y'): string

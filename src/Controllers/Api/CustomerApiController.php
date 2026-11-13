@@ -81,6 +81,7 @@ final class CustomerApiController extends ApiBaseController
                 'default_quantity' => (float)$s['default_quantity'],
                 'custom_rate' => $s['custom_rate'] !== null ? (float)$s['custom_rate'] : null,
                 'effective_rate' => (float)$s['effective_rate'],
+                'product_default_rate' => (float)$s['product_default_rate'],
                 'shift' => $s['shift'],
             ];
         }

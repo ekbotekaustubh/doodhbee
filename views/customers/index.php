@@ -150,7 +150,7 @@
                                                 <span><?= $cs['product_code'] === 'buffalo' ? '🐃' : ($cs['product_code'] === 'cow' ? '🐄' : ($cs['product_code'] === 'paneer' ? '🧀' : '🥛')) ?></span>
                                                 <span><?= e($cs['product_name']) ?>:</span>
                                                 <strong class="text-slate-900"><?= number_format((float)$cs['default_quantity'], 1) ?> <?= e($cs['unit']) ?></strong>
-                                                <span class="text-slate-400 font-normal">(@ <?= formatMoney($cs['custom_rate'] ?? $cs['product_default_rate']) ?>)</span>
+                                                <span class="text-slate-400 font-normal">(@ <?= formatMoney($cs['effective_rate'] ?? $cs['custom_rate'] ?? $cs['product_default_rate'] ?? 0) ?>)</span>
                                             </span>
                                         <?php endforeach; ?>
                                     </div>
