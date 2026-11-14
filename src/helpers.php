@@ -79,6 +79,42 @@ function asset(string $path): string
     return ($baseDir === '' ? '' : $baseDir) . '/' . $cleanPath;
 }
 
+/**
+ * Return base64 data URI of a public asset.
+ * Guarantees reliable offline rendering in Dompdf, email templates, and printouts.
+ */
+function assetDataUri(string $path): string
+{
+    $cleanPath = ltrim($path, '/');
+    if (str_starts_with($cleanPath, 'public/')) {
+        $filePath = dirname(__DIR__) . '/' . $cleanPath;
+    } else {
+        $filePath = dirname(__DIR__) . '/public/' . $cleanPath;
+    }
+
+    if (!file_exists($filePath) || !is_file($filePath)) {
+        return '';
+    }
+
+    $ext = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+    $mime = match ($ext) {
+        'png' => 'image/png',
+        'jpg', 'jpeg' => 'image/jpeg',
+        'svg' => 'image/svg+xml',
+        'webp' => 'image/webp',
+        'gif' => 'image/gif',
+        'ico' => 'image/x-icon',
+        default => 'application/octet-stream',
+    };
+
+    $content = file_get_contents($filePath);
+    if ($content === false) {
+        return '';
+    }
+
+    return 'data:' . $mime . ';base64,' . base64_encode($content);
+}
+
 function isActiveRoute(string $prefix): bool
 {
     $req = new \App\Core\Request();

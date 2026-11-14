@@ -4,6 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title><?= e($title ?? 'DoodhBee - Multi-Tenant Dairy SaaS') ?></title>
+    <!-- Favicon & PWA -->
+    <link rel="icon" type="image/x-icon" href="<?= asset('public/favicon.ico') ?>">
+    <link rel="icon" type="image/png" sizes="32x32" href="<?= asset('public/favicon-32x32.png') ?>">
+    <link rel="icon" type="image/png" sizes="16x16" href="<?= asset('public/favicon-16x16.png') ?>">
+    <link rel="apple-touch-icon" sizes="180x180" href="<?= asset('public/apple-touch-icon.png') ?>">
+    <link rel="manifest" href="<?= asset('public/site.webmanifest') ?>">
+    <meta name="theme-color" content="#e8ab06">
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Alpine.js & HTMX (Local Vendored with CDN Fallback) -->
@@ -45,13 +52,11 @@
         <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
             <!-- Brand -->
             <div class="flex items-center gap-3">
-                <a href="<?= url('/') ?>" class="flex items-center gap-2">
-                    <span class="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black text-xl shadow-md">
-                        🥛
-                    </span>
+                <a href="<?= url('/') ?>" class="flex items-center gap-2.5 group">
+                    <img src="<?= asset('public/assets/images/logo/doodhbee-icon-rounded.png') ?>" alt="DoodhBee" class="w-10 h-10 rounded-xl shadow-md group-hover:scale-105 transition transform">
                     <div>
                         <div class="font-black text-slate-900 tracking-tight leading-none text-base sm:text-lg">DoodhBee</div>
-                        <div class="text-[11px] font-semibold text-blue-600 truncate max-w-[140px] sm:max-w-xs">
+                        <div class="text-[11px] font-semibold text-amber-700 truncate max-w-[140px] sm:max-w-xs">
                             <?= e(\App\Core\Auth::tenant()['business_name'] ?? 'Dairy SaaS') ?>
                         </div>
                     </div>

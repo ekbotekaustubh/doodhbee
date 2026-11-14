@@ -44,8 +44,8 @@
         <div class="flex flex-col md:flex-row md:items-start justify-between gap-6 pb-6 border-b border-slate-100">
             <!-- Business Info -->
             <div>
-                <div class="flex items-center gap-2 mb-1">
-                    <span class="text-2xl">🥛</span>
+                <div class="flex items-center gap-3 mb-1.5">
+                    <img src="<?= asset('public/assets/images/logo/doodhbee-icon-rounded.png') ?>" alt="DoodhBee" class="w-10 h-10 rounded-xl shadow-sm object-cover">
                     <h2 class="text-2xl font-black text-slate-900"><?= e($tenant['business_name']) ?></h2>
                 </div>
                 <p class="text-xs text-slate-600">

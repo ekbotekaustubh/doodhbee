@@ -4,6 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title><?= e($title ?? 'DoodhBee - Multi-Tenant Dairy SaaS') ?></title>
+    <!-- Favicon & PWA -->
+    <link rel="icon" type="image/x-icon" href="<?= asset('public/favicon.ico') ?>">
+    <link rel="icon" type="image/png" sizes="32x32" href="<?= asset('public/favicon-32x32.png') ?>">
+    <link rel="icon" type="image/png" sizes="16x16" href="<?= asset('public/favicon-16x16.png') ?>">
+    <link rel="apple-touch-icon" sizes="180x180" href="<?= asset('public/apple-touch-icon.png') ?>">
+    <link rel="manifest" href="<?= asset('public/site.webmanifest') ?>">
+    <meta name="theme-color" content="#e8ab06">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .tap-target { min-height: 48px; }
@@ -13,10 +20,13 @@
     <div class="w-full max-w-md">
         <!-- Logo -->
         <div class="text-center mb-6">
-            <div class="w-16 h-16 rounded-2xl bg-blue-600 text-white flex items-center justify-center mx-auto text-3xl font-black shadow-xl mb-3">
-                🥛
-            </div>
-            <h1 class="text-2xl font-black tracking-tight text-white">DoodhBee SaaS</h1>
+            <a href="<?= url('/') ?>" class="inline-block group transition transform hover:scale-105 duration-200 mb-3">
+                <img src="<?= asset('public/assets/images/logo/doodhbee-logo-256.png') ?>" alt="DoodhBee Logo" class="w-24 h-24 rounded-2xl mx-auto shadow-2xl border border-amber-400/30 object-cover">
+            </a>
+            <h1 class="text-2xl font-black tracking-tight text-white flex items-center justify-center gap-2">
+                <span>DoodhBee</span>
+                <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">SaaS</span>
+            </h1>
             <p class="text-sm text-slate-400 mt-1">Multi-Tenant Milk Delivery & Zero-Dispute Invoicing</p>
         </div>
 

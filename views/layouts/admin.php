@@ -4,6 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= e($title ?? 'Super Admin - DoodhBee SaaS Platform') ?></title>
+    <!-- Favicon & PWA -->
+    <link rel="icon" type="image/x-icon" href="<?= asset('public/favicon.ico') ?>">
+    <link rel="icon" type="image/png" sizes="32x32" href="<?= asset('public/favicon-32x32.png') ?>">
+    <link rel="icon" type="image/png" sizes="16x16" href="<?= asset('public/favicon-16x16.png') ?>">
+    <link rel="apple-touch-icon" sizes="180x180" href="<?= asset('public/apple-touch-icon.png') ?>">
+    <link rel="manifest" href="<?= asset('public/site.webmanifest') ?>">
+    <meta name="theme-color" content="#e8ab06">
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="<?= asset('public/assets/js/alpine.min.js') ?>" onerror="this.src='https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js'"></script>
 </head>
@@ -12,16 +19,16 @@
     <header class="bg-slate-900 border-b border-slate-800 sticky top-0 z-30">
         <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
             <div class="flex items-center gap-3">
-                <span class="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center font-black text-xl shadow-lg">
-                    🛡️
-                </span>
-                <div>
-                    <div class="font-black tracking-tight text-white flex items-center gap-2">
-                        <span>DoodhBee Platform</span>
-                        <span class="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-purple-900/80 text-purple-300 border border-purple-700">Super Admin</span>
+                <a href="<?= url('/admin') ?>" class="flex items-center gap-2.5 group">
+                    <img src="<?= asset('public/assets/images/logo/doodhbee-icon-rounded.png') ?>" alt="DoodhBee" class="w-10 h-10 rounded-xl shadow-lg group-hover:scale-105 transition transform">
+                    <div>
+                        <div class="font-black tracking-tight text-white flex items-center gap-2">
+                            <span>DoodhBee Platform</span>
+                            <span class="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-purple-900/80 text-purple-300 border border-purple-700">Super Admin</span>
+                        </div>
+                        <div class="text-xs text-slate-400">Multi-Tenant SaaS Governance</div>
                     </div>
-                    <div class="text-xs text-slate-400">Multi-Tenant SaaS Governance</div>
-                </div>
+                </a>
             </div>
 
             <div class="flex items-center gap-4">

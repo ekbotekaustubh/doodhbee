@@ -107,10 +107,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   padding: const EdgeInsets.all(16),
                   child: Row(
                     children: [
-                      const CircleAvatar(
+                      CircleAvatar(
                         radius: 28,
-                        backgroundColor: Color(0xFF0284C7),
-                        child: Text('🥛', style: TextStyle(fontSize: 28)),
+                        backgroundColor: const Color(0xFFE8AB06),
+                        child: ClipOval(
+                          child: Image.asset(
+                            'assets/images/logo_icon.png',
+                            width: 56,
+                            height: 56,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
                       ),
                       const SizedBox(width: 14),
                       Expanded(

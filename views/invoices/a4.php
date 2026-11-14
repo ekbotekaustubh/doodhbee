@@ -261,6 +261,9 @@ $isPdf = !empty($isPdf);
     <!-- Header -->
     <table class="header-table">
         <tr>
+            <td style="vertical-align: top; width: 48px; padding-right: 10px; padding-top: 4px;">
+                <img src="<?= assetDataUri('public/assets/images/logo/doodhbee-icon-rounded-128.png') ?>" alt="DoodhBee" style="width: 44px; height: 44px; display: block;">
+            </td>
             <td style="vertical-align: top;">
                 <h1 class="business-title"><?= e($tenant['business_name']) ?></h1>
                 <div class="business-sub">
@@ -273,6 +276,9 @@ $isPdf = !empty($isPdf);
                 <?php endif; ?>
             </td>
             <td style="vertical-align: top; text-align: right; width: 230px;">
+                <div style="font-size: 8px; font-weight: 800; color: #b45309; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px;">
+                    DoodhBee Verified Invoicing
+                </div>
                 <div class="tax-badge">TAX INVOICE</div>
                 <table class="meta-table">
                     <tr><td><strong>Invoice #:</strong></td><td>INV-<?= $invoice['billing_year'] ?>-<?= sprintf('%02d', $invoice['billing_month']) ?>-<?= sprintf('%04d', $invoice['id']) ?></td></tr>
@@ -491,8 +497,17 @@ $isPdf = !empty($isPdf);
                         <span class="upi-badge"><strong>UPI ID:</strong> <?= e($settings['upi_id']) ?></span>
                     </div>
                 <?php endif; ?>
-                <div class="powered-by">
-                    Powered by DoodhBee SaaS • Multi-Tenant Zero-Dispute Invoicing
+                <div class="powered-by" style="margin-top: 6px; padding-top: 4px; border-top: 1px solid #e2e8f0;">
+                    <table style="width: auto; border-collapse: collapse;">
+                        <tr>
+                            <td style="vertical-align: middle; width: 16px; padding-right: 5px;">
+                                <img src="<?= assetDataUri('public/assets/images/logo/doodhbee-icon-rounded-128.png') ?>" alt="DoodhBee" style="width: 14px; height: 14px; display: block;">
+                            </td>
+                            <td style="vertical-align: middle; font-size: 7.5px; color: #64748b;">
+                                Powered by <strong style="color: #0f172a;">DoodhBee</strong> SaaS • Multi-Tenant Zero-Dispute Invoicing Platform
+                            </td>
+                        </tr>
+                    </table>
                 </div>
             </td>
             <td style="width: 105px; vertical-align: top; text-align: center;">
