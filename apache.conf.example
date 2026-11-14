@@ -1,0 +1,54 @@
+# ==============================================================================
+# DoodhDesk SaaS - Production Apache VirtualHost Configuration
+# Place in: /etc/apache2/sites-available/doodhdesk.conf
+# Enable with: sudo a2ensite doodhdesk.conf && sudo systemctl reload apache2
+# ==============================================================================
+
+<VirtualHost *:80>
+    ServerName app.doodhdesk.com
+    ServerAdmin webmaster@doodhdesk.com
+
+    # Redirect HTTP to HTTPS
+    RewriteEngine On
+    RewriteCond %{HTTPS} off
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerName app.doodhdesk.com
+    ServerAdmin webmaster@doodhdesk.com
+
+    # Document Root (MUST point to public/ subdirectory for security)
+    DocumentRoot /var/www/doodhdesk/public
+
+    <Directory /var/www/doodhdesk/public>
+        Options -Indexes +FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    # Pass Authorization Header to PHP-FPM
+    SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
+
+    # Route PHP requests through PHP-FPM
+    <FilesMatch \.php$>
+        SetHandler "proxy:unix:/run/php/php8.4-fpm.sock|fcgi://localhost"
+    </FilesMatch>
+
+    # SSL Certificates (managed via certbot / Let's Encrypt)
+    # SSLEngine on
+    # SSLCertificateFile /etc/letsencrypt/live/app.doodhdesk.com/fullchain.pem
+    # SSLCertificateKeyFile /etc/letsencrypt/live/app.doodhdesk.com/privkey.pem
+    # Include /etc/letsencrypt/options-ssl-apache.conf
+
+    # Security Headers
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set X-XSS-Protection "1; mode=block"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+    # Logging
+    ErrorLog ${APACHE_LOG_DIR}/doodhdesk_error.log
+    CustomLog ${APACHE_LOG_DIR}/doodhdesk_access.log combined
+</VirtualHost>

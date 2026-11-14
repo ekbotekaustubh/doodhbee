@@ -1,6 +1,11 @@
 <?php
 declare(strict_types=1);
 
+use App\Core\Env;
+
+require_once __DIR__ . '/../src/Core/Env.php';
+Env::load(__DIR__ . '/..');
+
 function getDbConfig(): array
 {
     $options = [
@@ -13,11 +18,11 @@ function getDbConfig(): array
     }
 
     return [
-        'host' => $_ENV['DB_HOST'] ?? '127.0.0.1',
-        'port' => (int)($_ENV['DB_PORT'] ?? 3306),
-        'database' => $_ENV['DB_DATABASE'] ?? 'dairyflow',
-        'username' => $_ENV['DB_USERNAME'] ?? 'dairyflow',
-        'password' => $_ENV['DB_PASSWORD'] ?? 'dairyflow123',
+        'host' => (string)Env::get('DB_HOST', '127.0.0.1'),
+        'port' => (int)Env::get('DB_PORT', 3306),
+        'database' => (string)Env::get('DB_DATABASE', 'dairyflow'),
+        'username' => (string)Env::get('DB_USERNAME', 'dairyflow'),
+        'password' => (string)Env::get('DB_PASSWORD', 'dairyflow123'),
         'charset' => 'utf8mb4',
         'options' => $options
     ];

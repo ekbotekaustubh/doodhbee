@@ -135,6 +135,11 @@ final class AuthController
 
     public function demoSwitch(Request $request, array $params): void
     {
+        if (!isDemoMode()) {
+            Response::redirect(url('/login'));
+            return;
+        }
+
         $role = $params['role'] ?? 'tenant1';
 
         if ($role === 'tenant1') {

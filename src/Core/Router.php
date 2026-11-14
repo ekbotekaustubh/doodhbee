@@ -61,8 +61,19 @@ final class Router
         $method = $request->method();
         $path = '/' . trim($request->path(), '/');
 
+        // Enforce CSRF token protection on non-API state-changing requests
+        if (!in_array($method, ['GET', 'HEAD', 'OPTIONS'], true) && !str_starts_with($path, '/api')) {
+            if (!$request->validateCsrf()) {
+                http_response_code(419);
+                Auth::flash('error', 'Your session or security token expired. Please try again.');
+                Response::redirect($_SERVER['HTTP_REFERER'] ?? url('/login'));
+                return;
+            }
+        }
+
         foreach ($this->routes as $route) {
-            if ($route['method'] !== 'ANY' && $route['method'] !== $method) {
+            $isHeadForGet = ($method === 'HEAD' && $route['method'] === 'GET');
+            if ($route['method'] !== 'ANY' && $route['method'] !== $method && !$isHeadForGet) {
                 continue;
             }
 

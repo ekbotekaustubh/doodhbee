@@ -1,0 +1,97 @@
+# ==============================================================================
+# DoodhDesk SaaS - Production Nginx Virtual Host Configuration
+# Place in: /etc/nginx/sites-available/doodhdesk.conf
+# Enable with: sudo ln -s /etc/nginx/sites-available/doodhdesk.conf /etc/nginx/sites-enabled/
+# ==============================================================================
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name app.doodhdesk.com;
+
+    # Redirect all HTTP requests to HTTPS
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name app.doodhdesk.com;
+
+    # Document Root (MUST point to public/ subdirectory for security)
+    root /var/www/doodhdesk/public;
+    index index.php index.html;
+
+    # SSL Certificates (managed via certbot / Let's Encrypt)
+    # ssl_certificate /etc/letsencrypt/live/app.doodhdesk.com/fullchain.pem;
+    # ssl_certificate_key /etc/letsencrypt/live/app.doodhdesk.com/privkey.pem;
+    # include /etc/letsencrypt/options-ssl-nginx.conf;
+    # ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    # Security Headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    # Character set & Upload limit
+    charset utf-8;
+    client_max_body_size 16M;
+
+    # Gzip Compression
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_types text/plain text/css text/xml application/json application/javascript application/rss+xml application/atom+xml image/svg+xml;
+
+    # Main Front Controller Routing
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    # Static Assets Caching (CSS, JS, Fonts, Images)
+    location ~* \.(ico|css|js|gif|jpe?g|png|webp|svg|woff2?|eot|ttf|otf)$ {
+        expires 30d;
+        add_header Cache-Control "public, no-transform";
+        access_log off;
+        log_not_found off;
+        try_files $uri =404;
+    }
+
+    # Prevent execution of any scripts in the uploads directory (Anti-RCE)
+    location ~* ^/uploads/.*\.(php|phtml|phar|pl|py|cgi|asp|js|sh)$ {
+        deny all;
+        return 404;
+    }
+
+    # Deny access to hidden files and system directories
+    location ~ /\.(?!well-known) {
+        deny all;
+        access_log off;
+        log_not_found off;
+    }
+
+    # FastCGI PHP-FPM Handler
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+
+        # Use PHP-FPM socket (adjust for your PHP version: e.g. php8.4-fpm or php8.2-fpm)
+        fastcgi_pass unix:/run/php/php8.4-fpm.sock;
+
+        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+        fastcgi_param DOCUMENT_ROOT $realpath_root;
+        fastcgi_param HTTP_AUTHORIZATION $http_authorization;
+
+        fastcgi_buffer_size 128k;
+        fastcgi_buffers 256 16k;
+        fastcgi_busy_buffers_size 256k;
+        fastcgi_temp_file_write_size 256k;
+        fastcgi_read_timeout 60s;
+    }
+
+    # Logging
+    access_log /var/log/nginx/doodhdesk_access.log combined;
+    error_log /var/log/nginx/doodhdesk_error.log warn;
+}

@@ -1,7 +1,19 @@
 <?php
 declare(strict_types=1);
 
+use App\Core\Env;
+
 // Global Helper Functions for DoodhDesk SaaS
+
+function env(string $key, mixed $default = null): mixed
+{
+    return Env::get($key, $default);
+}
+
+function isDemoMode(): bool
+{
+    return filter_var(Env::get('ALLOW_DEMO_MODE', false), FILTER_VALIDATE_BOOLEAN);
+}
 
 function e(?string $value): string
 {
@@ -26,29 +38,45 @@ function url(string $path = '/'): string
     static $base = null;
     if ($base === null) {
         $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
-        if (str_ends_with($scriptName, 'index.php')) {
+        $dir = str_replace('\\', '/', dirname($scriptName));
+        $baseDir = ($dir === '/' || $dir === '.') ? '' : rtrim($dir, '/');
+
+        // Check if index.php rewrite is supported or disabled
+        $useIndexInUrl = filter_var(Env::get('APP_USE_INDEX_IN_URL', str_ends_with($scriptName, 'index.php') && !filter_var(Env::get('APP_REWRITE_ENABLED', false), FILTER_VALIDATE_BOOLEAN)), FILTER_VALIDATE_BOOLEAN);
+
+        if ($useIndexInUrl && str_ends_with($scriptName, 'index.php')) {
             $base = $scriptName;
         } else {
-            $dir = str_replace('\\', '/', dirname($scriptName));
-            $base = ($dir === '/' || $dir === '.') ? '/index.php' : rtrim($dir, '/') . '/index.php';
+            $base = $baseDir;
         }
     }
     $cleanPath = '/' . ltrim($path, '/');
     if ($cleanPath === '/') {
-        return $base;
+        return $base === '' ? '/' : $base;
     }
-    return $base . $cleanPath;
+    return ($base === '' ? '' : $base) . $cleanPath;
 }
 
 function asset(string $path): string
 {
     static $baseDir = null;
+    static $docRootIsPublic = null;
     if ($baseDir === null) {
         $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
         $dir = str_replace('\\', '/', dirname($scriptName));
         $baseDir = ($dir === '/' || $dir === '.') ? '' : rtrim($dir, '/');
+
+        $docRoot = str_replace('\\', '/', $_SERVER['DOCUMENT_ROOT'] ?? '');
+        $docRootIsPublic = str_ends_with(rtrim($docRoot, '/'), '/public') || str_ends_with(rtrim($dir, '/'), '/public');
     }
-    return $baseDir . '/' . ltrim($path, '/');
+
+    $cleanPath = ltrim($path, '/');
+    // If DocumentRoot points directly to public/, strip 'public/' prefix from asset path
+    if ($docRootIsPublic && str_starts_with($cleanPath, 'public/')) {
+        $cleanPath = substr($cleanPath, 7);
+    }
+
+    return ($baseDir === '' ? '' : $baseDir) . '/' . $cleanPath;
 }
 
 function isActiveRoute(string $prefix): bool

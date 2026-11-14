@@ -5,3 +5,9 @@ composer.phar
 !/public/uploads/.gitkeep
 /public/download/*
 !/public/download/.gitkeep
+/storage/logs/*
+!/storage/logs/.gitkeep
+/storage/backups/*
+!/storage/backups/.gitkeep
+/storage/cache/*
+!/storage/cache/.gitkeep

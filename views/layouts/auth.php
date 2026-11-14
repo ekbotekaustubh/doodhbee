@@ -22,7 +22,8 @@
 
         <?= $content ?>
 
-        <!-- Quick Switcher on Auth -->
+        <?php if (isDemoMode()): ?>
+        <!-- Quick Switcher on Auth (Only in Demo/Dev Mode) -->
         <div class="mt-8 pt-6 border-t border-slate-800 text-center">
             <p class="text-xs text-slate-400 mb-2 font-medium">⚡ Quick Demo One-Click Access:</p>
             <div class="flex flex-wrap items-center justify-center gap-2">
@@ -37,6 +38,7 @@
                 </a>
             </div>
         </div>
+        <?php endif; ?>
     </div>
 </body>
 </html>

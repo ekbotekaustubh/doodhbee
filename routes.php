@@ -11,13 +11,49 @@ use App\Controllers\SuperAdminController;
 use App\Core\Router;
 
 return function (Router $router): void {
+    // 0. System Health Check Endpoint
+    $router->get('/health', function (\App\Core\Request $request) {
+        $status = 'healthy';
+        $dbStatus = 'disconnected';
+        $error = null;
+
+        try {
+            $db = \App\Core\Database::getInstance();
+            $db->fetchOne("SELECT 1");
+            $dbStatus = 'connected';
+        } catch (\Throwable $e) {
+            $status = 'unhealthy';
+            $error = $e->getMessage();
+        }
+
+        $statusCode = ($status === 'healthy') ? 200 : 503;
+        \App\Core\Response::json([
+            'status' => $status,
+            'timestamp' => date('c'),
+            'app' => 'DoodhDesk SaaS',
+            'environment' => \App\Core\Env::get('APP_ENV', 'production'),
+            'php' => PHP_VERSION,
+            'database' => [
+                'status' => $dbStatus,
+                'name' => \App\Core\Env::get('DB_DATABASE', 'dairyflow'),
+            ],
+            'storage' => [
+                'logs' => is_writable(__DIR__ . '/storage/logs') ? 'writable' : 'read-only',
+                'uploads' => is_writable(__DIR__ . '/public/uploads') ? 'writable' : 'read-only',
+            ],
+            'error' => $error,
+        ], $statusCode);
+    });
+
     // 1. Auth & Demo Switching
     $router->get('/login', [AuthController::class, 'loginView']);
     $router->post('/login', [AuthController::class, 'login']);
     $router->get('/register', [AuthController::class, 'registerView']);
     $router->post('/register', [AuthController::class, 'register']);
     $router->get('/logout', [AuthController::class, 'logout']);
-    $router->get('/demo/{role}', [AuthController::class, 'demoSwitch']);
+    if (isDemoMode()) {
+        $router->get('/demo/{role}', [AuthController::class, 'demoSwitch']);
+    }
 
     // Admin Auth
     $router->get('/admin/login', [AuthController::class, 'adminLoginView']);

@@ -5,11 +5,13 @@
             <h1 class="text-2xl font-black text-white">SaaS Platform Governance</h1>
             <p class="text-xs text-slate-400 mt-0.5">Global subscription tier rules, tenant monitoring & capacity management</p>
         </div>
+        <?php if (isDemoMode()): ?>
         <div class="flex items-center gap-2">
             <a href="<?= url('/demo/tenant1') ?>" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-blue-400 text-xs font-bold rounded-xl border border-slate-700">
                 🥛 Switch to Krishna Dairy Portal
             </a>
         </div>
+        <?php endif; ?>
     </div>
 
     <!-- Platform KPI Counters -->
@@ -150,10 +152,12 @@
                                         </button>
                                     </form>
 
-                                    <!-- Quick Switcher to this Tenant -->
+                                    <?php if (isDemoMode()): ?>
+                                    <!-- Quick Switcher to this Tenant (Demo Only) -->
                                     <a href="<?= url("/demo/tenant{$t['id']}") ?>" class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-slate-800 text-blue-400 hover:bg-slate-700 border border-slate-700">
                                         Login As
                                     </a>
+                                    <?php endif; ?>
                                 </div>
                             </td>
                         </tr>

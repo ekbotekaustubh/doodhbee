@@ -39,7 +39,7 @@
         }
     </style>
 </head>
-<body class="h-full flex flex-col text-slate-900 bg-slate-50 pb-20 md:pb-6">
+<body class="h-full flex flex-col text-slate-900 bg-slate-50 pb-20 md:pb-6" hx-headers='{"X-CSRF-Token": "<?= \App\Core\Auth::csrfToken() ?>"}'>
     <!-- Top Header -->
     <header class="sticky top-0 z-40 bg-white border-b border-slate-200 shadow-sm">
         <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -158,12 +158,14 @@
         </a>
     </div>
 
-    <!-- Quick Demo Switcher Bar (Bottom Footer for easy review) -->
+    <!-- Quick Demo Switcher Bar (Bottom Footer for easy review - Only in Demo/Dev Mode) -->
+    <?php if (isDemoMode()): ?>
     <div class="border-t border-slate-200 bg-slate-100 py-2 px-4 text-xs text-slate-500 text-center flex flex-wrap items-center justify-center gap-3">
         <span class="font-semibold text-slate-700">Quick Demo Switch:</span>
         <a href="<?= url('/demo/tenant1') ?>" class="px-2 py-0.5 rounded bg-white border border-slate-300 font-medium text-blue-700 hover:bg-blue-50">🥛 Krishna Dairy (Paid Tier)</a>
         <a href="<?= url('/demo/tenant2') ?>" class="px-2 py-0.5 rounded bg-white border border-slate-300 font-medium text-emerald-700 hover:bg-emerald-50">🐄 Radha Dairy (Free 4/5 Quota)</a>
         <a href="<?= url('/demo/admin') ?>" class="px-2 py-0.5 rounded bg-white border border-slate-300 font-medium text-purple-700 hover:bg-purple-50">🛡️ Super Admin Portal</a>
     </div>
+    <?php endif; ?>
 </body>
 </html>

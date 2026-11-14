@@ -142,19 +142,25 @@ final class SettingsController
         $qrPath = null;
         $file = $request->file('upi_qr_file');
         if ($file && !empty($file['tmp_name']) && $file['error'] === UPLOAD_ERR_OK) {
-            $allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'];
+            $allowedTypes = [
+                'image/jpeg' => 'jpg',
+                'image/png' => 'png',
+                'image/webp' => 'webp',
+                'image/svg+xml' => 'svg'
+            ];
             $finfo = finfo_open(FILEINFO_MIME_TYPE);
             $mime = finfo_file($finfo, $file['tmp_name']);
             finfo_close($finfo);
 
-            if (in_array($mime, $allowedTypes, true)) {
-                $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
+            if (isset($allowedTypes[$mime])) {
+                $ext = $allowedTypes[$mime];
                 $uploadDir = __DIR__ . '/../../public/uploads';
                 if (!is_dir($uploadDir)) {
                     mkdir($uploadDir, 0755, true);
                 }
                 $tenantId = Auth::tenantId();
-                $filename = "qr_tenant_{$tenantId}_" . time() . ".{$ext}";
+                $randomHex = bin2hex(random_bytes(8));
+                $filename = "qr_tenant_{$tenantId}_{$randomHex}.{$ext}";
                 $dest = "{$uploadDir}/{$filename}";
                 if (move_uploaded_file($file['tmp_name'], $dest)) {
                     $qrPath = "uploads/{$filename}";

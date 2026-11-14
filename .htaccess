@@ -1,6 +1,28 @@
+# DoodhDesk SaaS - Apache Web Server Configuration
+# Portable Rewrite Rules & Security Protection
+
 <IfModule mod_rewrite.c>
     RewriteEngine On
-    RewriteBase /doodhdesk/
+
+    # Pass Authorization Header to PHP
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # Block direct web access to sensitive directories
+    RewriteRule ^(config|database|src|tests|vendor|storage|\.git) - [F,L,NC]
+
+    # Block direct web access to sensitive files
+    <FilesMatch "^\.(env|git|htaccess)|composer\.(json|lock|phar)|prompt\.txt|phpunit\.xml">
+        <IfModule mod_authz_core.c>
+            Require all denied
+        </IfModule>
+        <IfModule !mod_authz_core.c>
+            Deny from all
+        </IfModule>
+    </FilesMatch>
+
+    # Disable directory browsing
+    Options -Indexes
 
     # Direct access to real files and directories
     RewriteCond %{REQUEST_FILENAME} !-f
