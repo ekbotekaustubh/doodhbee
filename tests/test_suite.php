@@ -11,7 +11,7 @@ use App\Services\DeliveryService;
 use App\Services\QuotaService;
 
 echo "========================================================\n";
-echo "   DOODHDESK MULTI-TENANT SAAS AUTOMATED TEST SUITE    \n";
+echo "   DOODHBEE MULTI-TENANT SAAS AUTOMATED TEST SUITE    \n";
 echo "========================================================\n\n";
 
 $db = Database::getInstance();
@@ -37,7 +37,7 @@ function runTest(string $name, callable $testFn, int &$passed, int &$failed): vo
 }
 
 // TEST 1: Tenant Data Isolation
-runTest("Tenancy Data Isolation (Tenant 1 vs Tenant 2)", function() use ($db) {
+runTest("Tenancy Data Isolation (Tenant 1 vs Tenant 2)", function() use ($db, $deliveryService, $billingService) {
     // Tenant 1 has 6 customers, Tenant 2 has 4 customers
     $t1Customers = $db->fetchAll("SELECT id FROM customers WHERE tenant_id = 1");
     $t2Customers = $db->fetchAll("SELECT id FROM customers WHERE tenant_id = 2");
@@ -61,6 +61,45 @@ runTest("Tenancy Data Isolation (Tenant 1 vs Tenant 2)", function() use ($db) {
     $invOverlap = array_intersect(array_column($t1Invoices, 'id'), array_column($t2Invoices, 'id'));
     if (!empty($invOverlap)) {
         throw new \Exception("Data isolation breach: Invoices overlap between tenants!");
+    }
+
+    // Service-level Tenant Isolation Guards:
+    // 1. DeliveryService: Tenant 1 cannot record delivery for Tenant 2's customer
+    $caughtDeliveryLeak = false;
+    try {
+        $deliveryService->recordDelivery(1, $t2Ids[0], date('Y-m-d'), 'morning', DeliveryStatus::Delivered->value, 2.0);
+    } catch (\InvalidArgumentException $e) {
+        $caughtDeliveryLeak = true;
+    }
+    if (!$caughtDeliveryLeak) {
+        throw new \Exception("Data isolation breach: Tenant 1 was able to record delivery for Tenant 2 customer!");
+    }
+
+    // 2. BillingService: Tenant 1 cannot calculate or generate invoice for Tenant 2's customer
+    $caughtBillingLeak = false;
+    try {
+        $billingService->calculateCustomerBill(1, $t2Ids[0], (int)date('Y'), (int)date('m'));
+    } catch (\InvalidArgumentException $e) {
+        $caughtBillingLeak = true;
+    }
+    if (!$caughtBillingLeak) {
+        throw new \Exception("Data isolation breach: Tenant 1 was able to calculate bill for Tenant 2 customer!");
+    }
+
+    // 3. ProductService: Tenant 1 cannot subscribe to Tenant 2's product
+    $t2Products = $db->fetchAll("SELECT id FROM products WHERE tenant_id = 2");
+    if (!empty($t2Products)) {
+        $productService = new \App\Services\ProductService();
+        $t2ProdId = (int)$t2Products[0]['id'];
+        $testCustId = 999999;
+        $productService->saveCustomerSubscriptions(1, $testCustId, [
+            ['product_id' => $t2ProdId, 'quantity' => 5.0, 'shift' => 'both', 'is_active' => true]
+        ]);
+        $check = $db->fetchOne("SELECT id FROM customer_subscriptions WHERE tenant_id = 1 AND product_id = ?", [$t2ProdId]);
+        $db->execute("DELETE FROM customer_subscriptions WHERE customer_id = ?", [$testCustId]);
+        if ($check) {
+            throw new \Exception("Data isolation breach: Tenant 1 was able to subscribe customer to Tenant 2's product!");
+        }
     }
 }, $passed, $failed);
 

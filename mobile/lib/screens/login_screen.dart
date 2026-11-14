@@ -101,7 +101,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 16),
               const Text(
-                'Sign In to DoodhDesk',
+                'Sign In to DoodhBee',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 24,
@@ -258,7 +258,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   controller: _serverUrlController,
                   decoration: InputDecoration(
                     labelText: 'API Gateway URL',
-                    hintText: 'http://192.168.1.5/doodhdesk/index.php/api',
+                    hintText: 'http://192.168.1.5/doodhbee/index.php/api',
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   ),

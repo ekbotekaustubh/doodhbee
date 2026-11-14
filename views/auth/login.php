@@ -28,7 +28,7 @@
         </div>
 
         <button type="submit" class="tap-target w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-sm shadow-lg transition">
-            Sign In to DoodhDesk
+            Sign In to DoodhBee
         </button>
     </form>
 

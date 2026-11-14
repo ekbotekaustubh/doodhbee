@@ -20,7 +20,7 @@ final class ApiDocsController extends ApiBaseController
         }
         readfile($filePath);
 
-        if (defined('DOODHDESK_TEST_RUNNER')) {
+        if (defined('DOODHBEE_TEST_RUNNER')) {
             return;
         }
         exit;
@@ -40,7 +40,7 @@ final class ApiDocsController extends ApiBaseController
         }
         readfile($filePath);
 
-        if (defined('DOODHDESK_TEST_RUNNER')) {
+        if (defined('DOODHBEE_TEST_RUNNER')) {
             return;
         }
         exit;

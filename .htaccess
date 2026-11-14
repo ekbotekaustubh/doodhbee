@@ -1,4 +1,4 @@
-# DoodhDesk SaaS - Apache Web Server Configuration
+# DoodhBee SaaS - Apache Web Server Configuration
 # Portable Rewrite Rules & Security Protection
 
 <IfModule mod_rewrite.c>

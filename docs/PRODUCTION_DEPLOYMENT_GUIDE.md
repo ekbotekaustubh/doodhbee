@@ -1,6 +1,6 @@
-# DoodhDesk SaaS - Production Deployment & Operations Guide
+# DoodhBee SaaS - Production Deployment & Operations Guide
 
-This guide provides the complete, production-grade instructions for deploying and running **DoodhDesk** on a production server (Ubuntu/Debian VPS, AWS EC2, DigitalOcean Droplet, Linode, or Docker).
+This guide provides the complete, production-grade instructions for deploying and running **DoodhBee** on a production server (Ubuntu/Debian VPS, AWS EC2, DigitalOcean Droplet, Linode, or Docker).
 
 ---
 
@@ -61,9 +61,9 @@ sudo mysql -u root -p
 Execute the database provisioning queries (replace `YourSecureDbPassword123!` with a strong password):
 
 ```sql
-CREATE DATABASE doodhdesk_prod CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'doodhdesk_user'@'localhost' IDENTIFIED BY 'YourSecureDbPassword123!';
-GRANT ALL PRIVILEGES ON doodhdesk_prod.* TO 'doodhdesk_user'@'localhost';
+CREATE DATABASE doodhbee_prod CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'doodhbee_user'@'localhost' IDENTIFIED BY 'YourSecureDbPassword123!';
+GRANT ALL PRIVILEGES ON doodhbee_prod.* TO 'doodhbee_user'@'localhost';
 FLUSH PRIVILEGES;
 EXIT;
 ```
@@ -71,12 +71,12 @@ EXIT;
 ---
 
 ### Step 3: Deploy Application Code & Configure Permissions
-Clone your repository to `/var/www/doodhdesk`:
+Clone your repository to `/var/www/doodhbee`:
 
 ```bash
-sudo mkdir -p /var/www/doodhdesk
-sudo chown -R $USER:$USER /var/www/doodhdesk
-cd /var/www/doodhdesk
+sudo mkdir -p /var/www/doodhbee
+sudo chown -R $USER:$USER /var/www/doodhbee
+cd /var/www/doodhbee
 
 # Clone your project code:
 git clone <your-repository-url> .
@@ -91,10 +91,10 @@ php composer.phar install --no-dev --optimize-autoloader
 Set appropriate directory permissions for the web server (`www-data`):
 
 ```bash
-sudo chown -R www-data:www-data /var/www/doodhdesk/storage
-sudo chown -R www-data:www-data /var/www/doodhdesk/public/uploads
-sudo chmod -R 775 /var/www/doodhdesk/storage
-sudo chmod -R 775 /var/www/doodhdesk/public/uploads
+sudo chown -R www-data:www-data /var/www/doodhbee/storage
+sudo chown -R www-data:www-data /var/www/doodhbee/public/uploads
+sudo chmod -R 775 /var/www/doodhbee/storage
+sudo chmod -R 775 /var/www/doodhbee/public/uploads
 ```
 
 ---
@@ -110,10 +110,10 @@ nano .env
 Configure your production parameters:
 
 ```ini
-APP_NAME="DoodhDesk SaaS"
+APP_NAME="DoodhBee SaaS"
 APP_ENV=production
 APP_DEBUG=false
-APP_URL=https://app.doodhdesk.com
+APP_URL=https://app.doodhbee.com
 APP_TIMEZONE=Asia/Kolkata
 
 # Strictly set to false to disable demo logins and test bars
@@ -121,8 +121,8 @@ ALLOW_DEMO_MODE=false
 
 DB_HOST=127.0.0.1
 DB_PORT=3306
-DB_DATABASE=doodhdesk_prod
-DB_USERNAME=doodhdesk_user
+DB_DATABASE=doodhbee_prod
+DB_USERNAME=doodhbee_user
 DB_PASSWORD="YourSecureDbPassword123!"
 
 APP_USE_INDEX_IN_URL=false
@@ -135,7 +135,7 @@ Save and exit (`Ctrl+O`, `Enter`, `Ctrl+X`).
 Secure file permissions of `.env` so other system users cannot read your database credentials:
 
 ```bash
-chmod 600 /var/www/doodhdesk/.env
+chmod 600 /var/www/doodhbee/.env
 ```
 
 ---
@@ -159,16 +159,16 @@ php scripts/setup_admin.php --email="admin@yourdomain.com" --password="YourAdmin
 Copy the production Nginx virtual host template:
 
 ```bash
-sudo cp nginx.conf.example /etc/nginx/sites-available/doodhdesk.conf
-sudo nano /etc/nginx/sites-available/doodhdesk.conf
+sudo cp nginx.conf.example /etc/nginx/sites-available/doodhbee.conf
+sudo nano /etc/nginx/sites-available/doodhbee.conf
 ```
 
-> **IMPORTANT:** Ensure `server_name` is set to your live domain (e.g., `app.doodhdesk.com`) and `root` points strictly to `/var/www/doodhdesk/public`.
+> **IMPORTANT:** Ensure `server_name` is set to your live domain (e.g., `app.doodhbee.com`) and `root` points strictly to `/var/www/doodhbee/public`.
 
 Enable the site and verify configuration:
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/doodhdesk.conf /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/doodhbee.conf /etc/nginx/sites-enabled/
 sudo rm -f /etc/nginx/sites-enabled/default
 sudo nginx -t
 sudo systemctl reload nginx
@@ -181,7 +181,7 @@ Install Certbot and obtain an automated SSL certificate:
 
 ```bash
 sudo apt install -y certbot python3-certbot-nginx
-sudo certbot --nginx -d app.doodhdesk.com
+sudo certbot --nginx -d app.doodhbee.com
 ```
 
 Certbot will automatically configure HTTPS, HTTP-to-HTTPS redirect, and setup daily automated renewal via systemd timer.
@@ -198,7 +198,7 @@ php scripts/health_check.php
 You should see:
 ```text
 ========================================================
-   DOODHDESK SAAS - PRODUCTION READINESS AUDIT          
+   DOODHBEE SAAS - PRODUCTION READINESS AUDIT          
 ========================================================
 • PHP Version >= 8.2 ......................... [OK]
 • PHP Extension [pdo] ........................ [OK]
@@ -218,7 +218,7 @@ AUDIT SUMMARY: 0 Error(s), 0 Warning(s)
 Test the live health endpoint in your browser or with curl:
 
 ```bash
-curl -i https://app.doodhdesk.com/health
+curl -i https://app.doodhbee.com/health
 ```
 
 ---
@@ -234,7 +234,7 @@ Add the following daily job at 02:00 AM:
 
 ```cron
 # Daily database backup and 14-day retention rotation
-0 2 * * * /usr/bin/php /var/www/doodhdesk/scripts/backup.php >> /var/www/doodhdesk/storage/logs/backup.log 2>&1
+0 2 * * * /usr/bin/php /var/www/doodhbee/scripts/backup.php >> /var/www/doodhbee/storage/logs/backup.log 2>&1
 ```
 
 ---

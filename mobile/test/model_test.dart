@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:doodhdesk_mobile/models/delivery_item.dart';
-import 'package:doodhdesk_mobile/models/customer.dart';
-import 'package:doodhdesk_mobile/models/invoice.dart';
-import 'package:doodhdesk_mobile/core/theme/app_theme.dart';
+import 'package:doodhbee_mobile/models/delivery_item.dart';
+import 'package:doodhbee_mobile/models/customer.dart';
+import 'package:doodhbee_mobile/models/invoice.dart';
+import 'package:doodhbee_mobile/core/theme/app_theme.dart';
 
 void main() {
   group('DeliveryItem Model Tests', () {

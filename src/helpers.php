@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 use App\Core\Env;
 
-// Global Helper Functions for DoodhDesk SaaS
+// Global Helper Functions for DoodhBee SaaS
 
 function env(string $key, mixed $default = null): mixed
 {

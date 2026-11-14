@@ -93,7 +93,7 @@ final class AuthController
             $_SESSION['api_token'] = $res['data']['token'];
         }
 
-        Auth::flash('success', "Welcome to DoodhDesk! Your free account is ready.");
+        Auth::flash('success', "Welcome to DoodhBee! Your free account is ready.");
         Response::redirect(url('/'));
     }
 

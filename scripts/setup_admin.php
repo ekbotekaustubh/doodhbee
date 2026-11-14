@@ -6,7 +6,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 use App\Core\Database;
 
 echo "========================================================\n";
-echo "   DOODHDESK SAAS - SUPER ADMIN PROVISIONING            \n";
+echo "   DOODHBEE SAAS - SUPER ADMIN PROVISIONING            \n";
 echo "========================================================\n\n";
 
 $options = getopt('', ['name::', 'email::', 'password::']);

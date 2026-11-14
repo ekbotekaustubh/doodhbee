@@ -1,21 +1,21 @@
 {
     "openapi": "3.0.3",
     "info": {
-        "title": "DoodhDesk REST API Specification",
-        "description": "Complete enterprise REST API for **DoodhDesk** — Modern Multi-Tenant Milk & Daily Essentials Delivery ERP.\n\n### Highlights:\n- **Dual Authentication**: Bearer Token via `Authorization: Bearer <token>` or Cookie-based Session auth.\n- **Multi-Tenancy**: Data isolation guaranteed across dairy tenants with strict tenant boundary enforcement.\n- **Quota Enforced**: Transparent SaaS capacity checks (Free 5 customers, elastic upgrades).\n- **Anti-Dispute Run-Sheets**: Real-time delivery tracking, vacation pause adjustments, and batch invoicing.\n- **Super Admin Governance**: Full platform metrics, tenant lifecycle, and quota overrides.\n\n### Base URLs:\n- Gateway: `http://localhost/doodhdesk/index.php/api`\n- Direct: `http://localhost/doodhdesk/api`",
+        "title": "DoodhBee REST API Specification",
+        "description": "Complete enterprise REST API for **DoodhBee** — Modern Multi-Tenant Milk & Daily Essentials Delivery ERP.\n\n### Highlights:\n- **Dual Authentication**: Bearer Token via `Authorization: Bearer <token>` or Cookie-based Session auth.\n- **Multi-Tenancy**: Data isolation guaranteed across dairy tenants with strict tenant boundary enforcement.\n- **Quota Enforced**: Transparent SaaS capacity checks (Free 5 customers, elastic upgrades).\n- **Anti-Dispute Run-Sheets**: Real-time delivery tracking, vacation pause adjustments, and batch invoicing.\n- **Super Admin Governance**: Full platform metrics, tenant lifecycle, and quota overrides.\n\n### Base URLs:\n- Gateway: `http://localhost/doodhbee/index.php/api`\n- Direct: `http://localhost/doodhbee/api`",
         "version": "1.0.0",
         "contact": {
-            "name": "DoodhDesk API Support",
-            "email": "support@doodhdesk.local"
+            "name": "DoodhBee API Support",
+            "email": "support@doodhbee.local"
         }
     },
     "servers": [
         {
-            "url": "http://localhost/doodhdesk/index.php",
+            "url": "http://localhost/doodhbee/index.php",
             "description": "Local Development Server (via index.php)"
         },
         {
-            "url": "http://localhost/doodhdesk/api",
+            "url": "http://localhost/doodhbee/api",
             "description": "Local API Gateway (via /api)"
         }
     ],
@@ -2202,7 +2202,7 @@
                                                 },
                                                 "public_view_url": {
                                                     "type": "string",
-                                                    "example": "http://localhost/doodhdesk/index.php/invoices/13/a4"
+                                                    "example": "http://localhost/doodhbee/index.php/invoices/13/a4"
                                                 }
                                             }
                                         }
@@ -3161,7 +3161,7 @@
                                     },
                                     "platform_name": {
                                         "type": "string",
-                                        "example": "DoodhDesk"
+                                        "example": "DoodhBee"
                                     }
                                 }
                             }

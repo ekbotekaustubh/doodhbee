@@ -15,7 +15,7 @@ class AuthService {
     final res = await _api.post(ApiConstants.login, data: {
       'login': login,
       'password': password,
-      'device_name': 'DoodhDesk Mobile App',
+      'device_name': 'DoodhBee Mobile App',
     });
 
     if (res.success && res.data != null) {

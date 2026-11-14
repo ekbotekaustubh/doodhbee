@@ -6,9 +6,9 @@ class ApiConstants {
   // - iOS Simulator uses localhost
   static String get defaultBaseUrl {
     if (Platform.isAndroid) {
-      return 'http://10.0.2.2/doodhdesk/index.php/api';
+      return 'http://10.0.2.2/doodhbee/index.php/api';
     }
-    return 'http://localhost/doodhdesk/index.php/api';
+    return 'http://localhost/doodhbee/index.php/api';
   }
 
   // Endpoints

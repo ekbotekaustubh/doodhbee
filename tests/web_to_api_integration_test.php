@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-define('DOODHDESK_TEST_RUNNER', true);
+define('DOODHBEE_TEST_RUNNER', true);
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
@@ -16,7 +16,7 @@ use App\Core\Auth;
 use App\Core\Request;
 
 echo "========================================================\n";
-echo "   DOODHDESK WEB-TO-API INTEGRATION TEST SUITE          \n";
+echo "   DOODHBEE WEB-TO-API INTEGRATION TEST SUITE          \n";
 echo "========================================================\n\n";
 
 $passed = 0;

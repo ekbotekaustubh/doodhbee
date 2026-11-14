@@ -6,7 +6,7 @@ require_once __DIR__ . '/../src/helpers.php';
 
 $pdo = getDbConnection();
 
-echo "Seeding DoodhDesk Database...\n";
+echo "Seeding DoodhBee Database...\n";
 
 // 1. System Settings
 $settings = [
@@ -14,8 +14,8 @@ $settings = [
     'paid_tier_unit_size' => '100',
     'paid_tier_unit_price' => '200.00',
     'currency_symbol' => '₹',
-    'platform_name' => 'DoodhDesk SaaS',
-    'support_email' => 'support@doodhdesk.com',
+    'platform_name' => 'DoodhBee SaaS',
+    'support_email' => 'support@doodhbee.com',
     'support_phone' => '+91 98000 11223'
 ];
 
@@ -26,7 +26,7 @@ foreach ($settings as $k => $v) {
 
 // 2. Super Admin
 $adminPassword = password_hash('admin123', PASSWORD_BCRYPT);
-$pdo->prepare("INSERT IGNORE INTO super_admins (id, name, email, password_hash) VALUES (1, 'DoodhDesk Platform Admin', 'admin@doodhdesk.com', ?)")
+$pdo->prepare("INSERT IGNORE INTO super_admins (id, name, email, password_hash) VALUES (1, 'DoodhBee Platform Admin', 'admin@doodhbee.com', ?)")
     ->execute([$adminPassword]);
 
 // 3. Tenant 1: Krishna Pure Milk Dairy
@@ -363,6 +363,6 @@ foreach ($customers as $c) {
 }
 
 echo "Database seeded successfully!\n";
-echo "Super Admin: admin@doodhdesk.com / admin123\n";
+echo "Super Admin: admin@doodhbee.com / admin123\n";
 echo "Tenant 1 (Krishna Pure Milk Dairy): ramesh@krishnadairy.com / password123 (Active Paid Quota: 105)\n";
 echo "Tenant 2 (Radha Fresh Cow Dairy): suresh@radhadairy.com / password123 (Free Tier Quota: 5)\n";

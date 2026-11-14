@@ -38,7 +38,7 @@ final class DeliveryApiController extends ApiBaseController
     {
         $tenantId = $this->tenantId();
         $customerId = (int)$request->input('customer_id', 0);
-        $date = (string)$request->input('date', date('Y-m-d'));
+        $date = trim((string)$request->input('date', (string)$request->input('delivery_date', date('Y-m-d'))));
         $shift = (string)$request->input('shift', 'morning');
         $status = (string)$request->input('status', 'delivered');
         $notes = (string)$request->input('notes', '');
@@ -65,6 +65,15 @@ final class DeliveryApiController extends ApiBaseController
 
         if (!empty($errors)) {
             $this->jsonError('Validation failed', 422, 'VALIDATION_ERROR', $errors);
+        }
+
+        // Multi-tenant isolation guard: Verify customer belongs to this tenant
+        $customer = $this->db->fetchOne(
+            "SELECT id FROM customers WHERE id = ? AND tenant_id = ?",
+            [$customerId, $tenantId]
+        );
+        if (!$customer) {
+            $this->jsonError('Customer not found.', 404, 'NOT_FOUND');
         }
 
         // Enforce Zero-charge rule: Missed or paused days strictly logged with 0 quantity billed
@@ -96,7 +105,7 @@ final class DeliveryApiController extends ApiBaseController
     {
         $tenantId = $this->tenantId();
         $customerId = (int)$request->input('customer_id', 0);
-        $date = (string)$request->input('date', date('Y-m-d'));
+        $date = trim((string)$request->input('date', (string)$request->input('delivery_date', date('Y-m-d'))));
         $shift = (string)$request->input('shift', 'morning');
         $status = (string)$request->input('status', 'delivered');
         $notes = (string)$request->input('notes', '');
@@ -117,6 +126,15 @@ final class DeliveryApiController extends ApiBaseController
 
         if (!empty($errors)) {
             $this->jsonError('Validation failed', 422, 'VALIDATION_ERROR', $errors);
+        }
+
+        // Multi-tenant isolation guard: Verify customer belongs to this tenant
+        $customer = $this->db->fetchOne(
+            "SELECT id FROM customers WHERE id = ? AND tenant_id = ?",
+            [$customerId, $tenantId]
+        );
+        if (!$customer) {
+            $this->jsonError('Customer not found.', 404, 'NOT_FOUND');
         }
 
         $productItems = null;

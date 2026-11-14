@@ -4,8 +4,8 @@ declare(strict_types=1);
 $spec = [
     'openapi' => '3.0.3',
     'info' => [
-        'title' => 'DoodhDesk REST API Specification',
-        'description' => "Complete enterprise REST API for **DoodhDesk** — Modern Multi-Tenant Milk & Daily Essentials Delivery ERP.\n\n" .
+        'title' => 'DoodhBee REST API Specification',
+        'description' => "Complete enterprise REST API for **DoodhBee** — Modern Multi-Tenant Milk & Daily Essentials Delivery ERP.\n\n" .
             "### Highlights:\n" .
             "- **Dual Authentication**: Bearer Token via `Authorization: Bearer <token>` or Cookie-based Session auth.\n" .
             "- **Multi-Tenancy**: Data isolation guaranteed across dairy tenants with strict tenant boundary enforcement.\n" .
@@ -13,21 +13,21 @@ $spec = [
             "- **Anti-Dispute Run-Sheets**: Real-time delivery tracking, vacation pause adjustments, and batch invoicing.\n" .
             "- **Super Admin Governance**: Full platform metrics, tenant lifecycle, and quota overrides.\n\n" .
             "### Base URLs:\n" .
-            "- Gateway: `http://localhost/doodhdesk/index.php/api`\n" .
-            "- Direct: `http://localhost/doodhdesk/api`",
+            "- Gateway: `http://localhost/doodhbee/index.php/api`\n" .
+            "- Direct: `http://localhost/doodhbee/api`",
         'version' => '1.0.0',
         'contact' => [
-            'name' => 'DoodhDesk API Support',
-            'email' => 'support@doodhdesk.local',
+            'name' => 'DoodhBee API Support',
+            'email' => 'support@doodhbee.local',
         ],
     ],
     'servers' => [
         [
-            'url' => 'http://localhost/doodhdesk/index.php',
+            'url' => 'http://localhost/doodhbee/index.php',
             'description' => 'Local Development Server (via index.php)',
         ],
         [
-            'url' => 'http://localhost/doodhdesk/api',
+            'url' => 'http://localhost/doodhbee/api',
             'description' => 'Local API Gateway (via /api)',
         ],
     ],
@@ -1322,7 +1322,7 @@ $spec['paths']['/api/invoices/{id}/share'] = [
                                         'customer_phone' => ['type' => 'string', 'example' => '9876543210'],
                                         'whatsapp_url' => ['type' => 'string', 'example' => 'https://api.whatsapp.com/send?phone=919876543210&text=...'],
                                         'share_message' => ['type' => 'string', 'example' => 'Dear Ramesh Patil, your milk bill for Oct 2026 is Rs. 2,525.00...'],
-                                        'public_view_url' => ['type' => 'string', 'example' => 'http://localhost/doodhdesk/index.php/invoices/13/a4'],
+                                        'public_view_url' => ['type' => 'string', 'example' => 'http://localhost/doodhbee/index.php/invoices/13/a4'],
                                     ],
                                 ],
                             ],
@@ -1841,7 +1841,7 @@ $spec['paths']['/api/admin/settings'] = [
                             'free_customer_limit' => ['type' => 'integer', 'example' => 5],
                             'price_per_customer' => ['type' => 'number', 'example' => 10.00],
                             'currency_symbol' => ['type' => 'string', 'example' => '₹'],
-                            'platform_name' => ['type' => 'string', 'example' => 'DoodhDesk'],
+                            'platform_name' => ['type' => 'string', 'example' => 'DoodhBee'],
                         ],
                     ],
                 ],

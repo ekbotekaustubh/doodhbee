@@ -7,7 +7,7 @@ use App\Core\Database;
 use App\Core\Env;
 
 echo "========================================================\n";
-echo "   DOODHDESK SAAS - PRODUCTION READINESS AUDIT          \n";
+echo "   DOODHBEE SAAS - PRODUCTION READINESS AUDIT          \n";
 echo "========================================================\n\n";
 
 $issues = 0;

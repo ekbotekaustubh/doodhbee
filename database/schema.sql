@@ -1,4 +1,4 @@
--- DoodhDesk Multi-Tenant SaaS Database Schema
+-- DoodhBee Multi-Tenant SaaS Database Schema
 -- Strict Types & Composite Multi-Tenant Indexing
 
 SET FOREIGN_KEY_CHECKS = 0;

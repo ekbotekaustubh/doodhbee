@@ -16,7 +16,7 @@ class DatabaseHelper {
 
   Future<Database> _initDatabase() async {
     final dbPath = await getDatabasesPath();
-    final path = join(dbPath, 'doodhdesk_offline.db');
+    final path = join(dbPath, 'doodhbee_offline.db');
 
     return await openDatabase(
       path,

@@ -1,4 +1,4 @@
-package com.doodhdesk.doodhdesk_mobile
+package com.doodhbee.doodhbee_mobile
 
 import io.flutter.embedding.android.FlutterActivity
 

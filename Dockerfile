@@ -1,5 +1,5 @@
 # ==============================================================================
-# DoodhDesk SaaS - Production Multi-Process Dockerfile (Nginx + PHP-FPM 8.4)
+# DoodhBee SaaS - Production Multi-Process Dockerfile (Nginx + PHP-FPM 8.4)
 # ==============================================================================
 
 FROM php:8.4-fpm-alpine
@@ -40,19 +40,19 @@ RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" \
     && echo "post_max_size=16M" >> "$PHP_INI_DIR/conf.d/custom.ini" \
     && echo "memory_limit=256M" >> "$PHP_INI_DIR/conf.d/custom.ini"
 
-WORKDIR /var/www/doodhdesk
+WORKDIR /var/www/doodhbee
 
 # Copy application source
-COPY . /var/www/doodhdesk
+COPY . /var/www/doodhbee
 
 # Create storage subdirectories and set appropriate permissions
-RUN mkdir -p /var/www/doodhdesk/storage/logs \
-    /var/www/doodhdesk/storage/backups \
-    /var/www/doodhdesk/storage/cache \
-    /var/www/doodhdesk/public/uploads \
+RUN mkdir -p /var/www/doodhbee/storage/logs \
+    /var/www/doodhbee/storage/backups \
+    /var/www/doodhbee/storage/cache \
+    /var/www/doodhbee/public/uploads \
     /run/nginx \
-    && chown -R www-data:www-data /var/www/doodhdesk/storage /var/www/doodhdesk/public/uploads \
-    && chmod -R 775 /var/www/doodhdesk/storage /var/www/doodhdesk/public/uploads
+    && chown -R www-data:www-data /var/www/doodhbee/storage /var/www/doodhbee/public/uploads \
+    && chmod -R 775 /var/www/doodhbee/storage /var/www/doodhbee/public/uploads
 
 # Configure Nginx
 COPY ./docker/nginx.conf /etc/nginx/http.d/default.conf

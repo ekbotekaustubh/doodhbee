@@ -7,7 +7,7 @@ use App\Core\Database;
 use App\Core\Env;
 
 echo "========================================================\n";
-echo "   DOODHDESK SAAS - DATABASE MIGRATION UTILITY          \n";
+echo "   DOODHBEE SAAS - DATABASE MIGRATION UTILITY          \n";
 echo "========================================================\n\n";
 
 try {
@@ -47,8 +47,8 @@ try {
         'paid_tier_unit_size' => '100',
         'paid_tier_unit_price' => '200.00',
         'currency_symbol' => '₹',
-        'platform_name' => 'DoodhDesk SaaS',
-        'support_email' => 'support@doodhdesk.com',
+        'platform_name' => 'DoodhBee SaaS',
+        'support_email' => 'support@doodhbee.com',
         'support_phone' => '+91 98000 11223'
     ];
 

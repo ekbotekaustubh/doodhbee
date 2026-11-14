@@ -1,6 +1,6 @@
-# DoodhDesk REST API Documentation
+# DoodhBee REST API Documentation
 
-Comprehensive enterprise API reference for **DoodhDesk** — Modern Multi-Tenant Milk & Daily Essentials Delivery ERP.
+Comprehensive enterprise API reference for **DoodhBee** — Modern Multi-Tenant Milk & Daily Essentials Delivery ERP.
 
 ---
 
@@ -8,11 +8,11 @@ Comprehensive enterprise API reference for **DoodhDesk** — Modern Multi-Tenant
 
 | Resource | URL | Description |
 |---|---|---|
-| **Interactive Swagger UI (Direct)** | [http://localhost/doodhdesk/api/docs](http://localhost/doodhdesk/api/docs) | Browser-based interactive API console with "Try it out" and Bearer Token persistence |
-| **Interactive Swagger UI (Docs folder)** | [http://localhost/doodhdesk/docs/](http://localhost/doodhdesk/docs/) | Static directory presentation in `docs/` |
-| **Interactive Swagger UI (Doc alias)** | [http://localhost/doodhdesk/doc/](http://localhost/doodhdesk/doc/) | Direct symlink in `doc/` |
-| **OpenAPI 3.0 Specification (JSON)** | [http://localhost/doodhdesk/docs/openapi.json](http://localhost/doodhdesk/docs/openapi.json) | Full OpenAPI 3.0 machine-readable schema (160+ KB) |
-| **Application Web App** | [http://localhost/doodhdesk/index.php/dashboard](http://localhost/doodhdesk/index.php/dashboard) | Main DoodhDesk web portal |
+| **Interactive Swagger UI (Direct)** | [http://localhost/doodhbee/api/docs](http://localhost/doodhbee/api/docs) | Browser-based interactive API console with "Try it out" and Bearer Token persistence |
+| **Interactive Swagger UI (Docs folder)** | [http://localhost/doodhbee/docs/](http://localhost/doodhbee/docs/) | Static directory presentation in `docs/` |
+| **Interactive Swagger UI (Doc alias)** | [http://localhost/doodhbee/doc/](http://localhost/doodhbee/doc/) | Direct symlink in `doc/` |
+| **OpenAPI 3.0 Specification (JSON)** | [http://localhost/doodhbee/docs/openapi.json](http://localhost/doodhbee/docs/openapi.json) | Full OpenAPI 3.0 machine-readable schema (160+ KB) |
+| **Application Web App** | [http://localhost/doodhbee/index.php/dashboard](http://localhost/doodhbee/index.php/dashboard) | Main DoodhBee web portal |
 
 ---
 
@@ -64,7 +64,7 @@ Comprehensive enterprise API reference for **DoodhDesk** — Modern Multi-Tenant
 
 ## 3. Authentication & Security
 
-DoodhDesk API uses dual-mode authentication:
+DoodhBee API uses dual-mode authentication:
 1. **Bearer Token Authentication** (Standard for Mobile Apps & external integrations):
    Include header in all authorized requests:
    ```http
@@ -75,7 +75,7 @@ DoodhDesk API uses dual-mode authentication:
 ### Acquiring a Bearer Token
 #### Tenant Login:
 ```bash
-curl -X POST http://localhost/doodhdesk/index.php/api/auth/login \
+curl -X POST http://localhost/doodhbee/index.php/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "admin@krushnadairy.com",
@@ -105,7 +105,7 @@ curl -X POST http://localhost/doodhdesk/index.php/api/auth/login \
 
 #### Super Admin Login:
 ```bash
-curl -X POST http://localhost/doodhdesk/index.php/api/admin/auth/login \
+curl -X POST http://localhost/doodhbee/index.php/api/admin/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "admin@dairyflow.com",

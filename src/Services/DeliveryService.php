@@ -260,6 +260,15 @@ final class DeliveryService
         ?string $notes = null,
         ?array $productItems = null
     ): array {
+        // Multi-tenant isolation guard: Verify customer belongs to tenant
+        $customer = $this->db->fetchOne(
+            "SELECT id FROM customers WHERE id = ? AND tenant_id = ?",
+            [$customerId, $tenantId]
+        );
+        if (!$customer) {
+            throw new \InvalidArgumentException("Customer #{$customerId} does not exist or unauthorized for tenant #{$tenantId}.");
+        }
+
         $this->productService->ensureDefaultProducts($tenantId);
 
         // Fetch customer subscriptions

@@ -6,7 +6,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 use App\Core\Env;
 
 echo "========================================================\n";
-echo "   DOODHDESK SAAS - AUTOMATED DATABASE BACKUP           \n";
+echo "   DOODHBEE SAAS - AUTOMATED DATABASE BACKUP           \n";
 echo "========================================================\n\n";
 
 $dbHost = (string)Env::get('DB_HOST', '127.0.0.1');

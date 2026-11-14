@@ -35,7 +35,7 @@ return function (Router $router): void {
         \App\Core\Response::json([
             'status' => $status,
             'timestamp' => date('c'),
-            'app' => 'DoodhDesk SaaS',
+            'app' => 'DoodhBee SaaS',
             'environment' => \App\Core\Env::get('APP_ENV', 'production'),
             'php' => PHP_VERSION,
             'database' => [

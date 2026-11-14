@@ -48,7 +48,7 @@ final class SuperAdminController
             'paid_tier_unit_size' => (int)$request->post('paid_tier_unit_size', 100),
             'paid_tier_unit_price' => (float)$request->post('paid_tier_unit_price', 200.0),
             'currency_symbol' => trim((string)$request->post('currency_symbol', '₹')),
-            'platform_name' => trim((string)$request->post('platform_name', 'DoodhDesk SaaS')),
+            'platform_name' => trim((string)$request->post('platform_name', 'DoodhBee SaaS')),
         ];
 
         // Update settings via REST API

@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-define('DOODHDESK_TEST_RUNNER', true);
+define('DOODHBEE_TEST_RUNNER', true);
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
@@ -12,7 +12,7 @@ use App\Core\Response;
 use App\Core\Router;
 
 echo "========================================================\n";
-echo "     DOODHDESK REST API AUTOMATED TEST SUITE           \n";
+echo "     DOODHBEE REST API AUTOMATED TEST SUITE           \n";
 echo "========================================================\n\n";
 
 $db = Database::getInstance();
@@ -117,7 +117,7 @@ runApiTest("API Auth: Tenant & Admin Login with Bearer Token Generation", functi
 
     // 3. Admin login
     $resAdmin = callApi('POST', '/api/admin/auth/login', [
-        'email' => 'admin@doodhdesk.com',
+        'email' => 'admin@doodhbee.com',
         'password' => 'admin123'
     ]);
 
@@ -457,10 +457,10 @@ runApiTest("API Super Admin: Platform Stats, Settings & Tenant Governance", func
         'paid_tier_unit_size' => 100,
         'paid_tier_unit_price' => 200.0,
         'currency_symbol' => '₹',
-        'platform_name' => 'DoodhDesk SaaS'
+        'platform_name' => 'DoodhBee SaaS'
     ], $adminToken);
 
-    if ($resSet['status'] !== 200 || $resSet['body']['data']['platform_name'] !== 'DoodhDesk SaaS') {
+    if ($resSet['status'] !== 200 || $resSet['body']['data']['platform_name'] !== 'DoodhBee SaaS') {
         throw new \Exception("Admin settings update failed");
     }
 }, $passed, $failed);
@@ -484,6 +484,181 @@ runApiTest("API Documentation: Swagger UI and OpenAPI 3.0 Specification Serving"
     $symlinkDoc = dirname(__DIR__) . '/doc';
     if (!file_exists($symlinkDoc . '/openapi.json')) {
         throw new \Exception("doc/openapi.json symlink access failed");
+    }
+}, $passed, $failed);
+
+// ==========================================
+// TEST 14: Comprehensive Cross-Tenant API Isolation & Security
+// ==========================================
+runApiTest("API Multi-Tenant Isolation: Cross-Tenant Data Leaks Strictly Blocked (404/403/401)", function() use (&$tenantToken, $db) {
+    // 1. Authenticate as Tenant 2 (Radha Fresh Cow Dairy)
+    $resT2Login = callApi('POST', '/api/auth/login', [
+        'login' => '9876500000',
+        'password' => 'password123',
+        'device_name' => 'T2 Test Client'
+    ]);
+    if ($resT2Login['status'] !== 200 || empty($resT2Login['body']['data']['token'])) {
+        throw new \Exception("Failed to login as Tenant 2 for cross-tenant isolation test");
+    }
+    $t2Token = $resT2Login['body']['data']['token'];
+
+    // 2. Fetch Tenant 2's resources
+    $t2CustRes = callApi('GET', '/api/customers', [], $t2Token);
+    $t2Customers = $t2CustRes['body']['data'] ?? [];
+    if (empty($t2Customers)) {
+        throw new \Exception("Tenant 2 has no customers to test isolation");
+    }
+    $t2CustomerId = (int)$t2Customers[0]['id'];
+
+    $t2ProdRes = callApi('GET', '/api/products', [], $t2Token);
+    $t2Products = $t2ProdRes['body']['data'] ?? [];
+    $t2ProductId = !empty($t2Products) ? (int)$t2Products[0]['id'] : 101;
+
+    // Create an invoice for Tenant 2 customer to test invoice isolation
+    $t2InvRes = callApi('POST', '/api/invoices/generate-single', [
+        'customer_id' => $t2CustomerId,
+        'month' => (int)date('n'),
+        'year' => (int)date('Y')
+    ], $t2Token);
+    $t2InvoiceId = (int)($t2InvRes['body']['data']['id'] ?? $t2InvRes['body']['data']['invoice_id'] ?? 0);
+
+    // ========================================================
+    // NOW ATTEMPT TO ACCESS TENANT 2 DATA USING TENANT 1 TOKEN
+    // ========================================================
+
+    // A. Customer Isolation
+    $crossCustGet = callApi('GET', "/api/customers/{$t2CustomerId}", [], $tenantToken);
+    if ($crossCustGet['status'] !== 404) {
+        throw new \Exception("Cross-tenant leak: Tenant 1 can read Tenant 2 customer details (Status: {$crossCustGet['status']})");
+    }
+
+    $crossCustPut = callApi('PUT', "/api/customers/{$t2CustomerId}", ['name' => 'Hacked Name', 'phone' => '9999999999'], $tenantToken);
+    if ($crossCustPut['status'] !== 404) {
+        throw new \Exception("Cross-tenant leak: Tenant 1 can update Tenant 2 customer (Status: {$crossCustPut['status']})");
+    }
+
+    $crossCustStatus = callApi('POST', "/api/customers/{$t2CustomerId}/status", [], $tenantToken);
+    if ($crossCustStatus['status'] !== 404) {
+        throw new \Exception("Cross-tenant leak: Tenant 1 can toggle Tenant 2 customer status (Status: {$crossCustStatus['status']})");
+    }
+
+    $crossCustLeaves = callApi('GET', "/api/customers/{$t2CustomerId}/leaves", [], $tenantToken);
+    if ($crossCustLeaves['status'] !== 404) {
+        throw new \Exception("Cross-tenant leak: Tenant 1 can read Tenant 2 customer leaves (Status: {$crossCustLeaves['status']})");
+    }
+
+    $crossCustAddLeave = callApi('POST', "/api/customers/{$t2CustomerId}/leaves", [
+        'start_date' => date('Y-m-d'),
+        'end_date' => date('Y-m-d', strtotime('+3 days')),
+        'reason' => 'Unauthorized vacation'
+    ], $tenantToken);
+    if ($crossCustAddLeave['status'] !== 404) {
+        throw new \Exception("Cross-tenant leak: Tenant 1 can add vacation for Tenant 2 customer (Status: {$crossCustAddLeave['status']})");
+    }
+
+    $crossCustLedger = callApi('GET', "/api/customers/{$t2CustomerId}/ledger", [], $tenantToken);
+    if ($crossCustLedger['status'] !== 404) {
+        throw new \Exception("Cross-tenant leak: Tenant 1 can view Tenant 2 customer ledger (Status: {$crossCustLedger['status']})");
+    }
+
+    // B. Delivery Tracking Isolation
+    $crossDelivToggle = callApi('POST', '/api/deliveries/toggle', [
+        'customer_id' => $t2CustomerId,
+        'date' => date('Y-m-d'),
+        'shift' => 'morning',
+        'status' => 'delivered'
+    ], $tenantToken);
+    if ($crossDelivToggle['status'] !== 404) {
+        throw new \Exception("Cross-tenant leak: Tenant 1 can toggle delivery for Tenant 2 customer (Status: {$crossDelivToggle['status']})");
+    }
+
+    $crossDelivEdit = callApi('POST', '/api/deliveries/edit-quantity', [
+        'customer_id' => $t2CustomerId,
+        'date' => date('Y-m-d'),
+        'shift' => 'morning',
+        'quantity' => 10.0
+    ], $tenantToken);
+    if ($crossDelivEdit['status'] !== 404) {
+        throw new \Exception("Cross-tenant leak: Tenant 1 can edit delivery quantity for Tenant 2 customer (Status: {$crossDelivEdit['status']})");
+    }
+
+    // C. Invoice Isolation
+    if ($t2InvoiceId > 0) {
+        $crossInvShow = callApi('GET', "/api/invoices/{$t2InvoiceId}", [], $tenantToken);
+        if ($crossInvShow['status'] !== 404) {
+            throw new \Exception("Cross-tenant leak: Tenant 1 can view Tenant 2 invoice (Status: {$crossInvShow['status']})");
+        }
+
+        $crossInvShare = callApi('GET', "/api/invoices/{$t2InvoiceId}/share", [], $tenantToken);
+        if ($crossInvShare['status'] !== 404) {
+            throw new \Exception("Cross-tenant leak: Tenant 1 can share Tenant 2 invoice (Status: {$crossInvShare['status']})");
+        }
+
+        $crossInvPayList = callApi('GET', "/api/invoices/{$t2InvoiceId}/payments", [], $tenantToken);
+        if ($crossInvPayList['status'] !== 404) {
+            throw new \Exception("Cross-tenant leak: Tenant 1 can view payments of Tenant 2 invoice (Status: {$crossInvPayList['status']})");
+        }
+    }
+
+    $crossInvGen = callApi('POST', '/api/invoices/generate-single', [
+        'customer_id' => $t2CustomerId,
+        'month' => (int)date('n'),
+        'year' => (int)date('Y')
+    ], $tenantToken);
+    if ($crossInvGen['status'] !== 404) {
+        throw new \Exception("Cross-tenant leak: Tenant 1 can generate invoice for Tenant 2 customer (Status: {$crossInvGen['status']})");
+    }
+
+    // D. Payment Recording Isolation
+    $crossPayment = callApi('POST', '/api/payments', [
+        'customer_id' => $t2CustomerId,
+        'amount' => 500.0,
+        'payment_date' => date('Y-m-d')
+    ], $tenantToken);
+    if ($crossPayment['status'] !== 404) {
+        throw new \Exception("Cross-tenant leak: Tenant 1 can record payment for Tenant 2 customer (Status: {$crossPayment['status']})");
+    }
+
+    if ($t2InvoiceId > 0) {
+        // Attempt linking Tenant 1 payment to Tenant 2's invoice
+        $t1Customers = callApi('GET', '/api/customers', [], $tenantToken);
+        $t1CustId = (int)$t1Customers['body']['data'][0]['id'];
+        $crossInvPayment = callApi('POST', '/api/payments', [
+            'customer_id' => $t1CustId,
+            'invoice_id' => $t2InvoiceId,
+            'amount' => 100.0,
+            'payment_date' => date('Y-m-d')
+        ], $tenantToken);
+        if ($crossInvPayment['status'] !== 404) {
+            throw new \Exception("Cross-tenant leak: Tenant 1 can record payment pointing to Tenant 2 invoice (Status: {$crossInvPayment['status']})");
+        }
+    }
+
+    // E. Product Isolation
+    $crossProdGet = callApi('GET', "/api/products/{$t2ProductId}", [], $tenantToken);
+    if ($crossProdGet['status'] !== 404) {
+        throw new \Exception("Cross-tenant leak: Tenant 1 can view Tenant 2 product details (Status: {$crossProdGet['status']})");
+    }
+
+    $crossProdToggle = callApi('POST', "/api/products/{$t2ProductId}/toggle", [], $tenantToken);
+    if ($crossProdToggle['status'] !== 404) {
+        throw new \Exception("Cross-tenant leak: Tenant 1 can toggle Tenant 2 product (Status: {$crossProdToggle['status']})");
+    }
+
+    $crossProdDel = callApi('DELETE', "/api/products/{$t2ProductId}", [], $tenantToken);
+    if ($crossProdDel['status'] !== 404) {
+        throw new \Exception("Cross-tenant leak: Tenant 1 can delete Tenant 2 product (Status: {$crossProdDel['status']})");
+    }
+
+    // F. Super Admin Privilege Escalation Guard
+    $crossAdminSettings = callApi('GET', '/api/admin/settings', [], $tenantToken);
+    if ($crossAdminSettings['status'] !== 401) {
+        throw new \Exception("Privilege escalation breach: Tenant 1 can access Super Admin settings (Status: {$crossAdminSettings['status']})");
+    }
+
+    $crossAdminTenants = callApi('GET', '/api/admin/tenants', [], $tenantToken);
+    if ($crossAdminTenants['status'] !== 401) {
+        throw new \Exception("Privilege escalation breach: Tenant 1 can list all tenants (Status: {$crossAdminTenants['status']})");
     }
 }, $passed, $failed);
 

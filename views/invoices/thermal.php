@@ -210,7 +210,7 @@ $widthPx = $format === '58mm' ? 190 : 260;
             <?= \App\Services\QrCodeService::renderQrTag(
                 $settings['upi_qr_path'] ?? null,
                 $settings['upi_id'] ?? null,
-                $tenant['business_name'] ?? 'DoodhDesk',
+                $tenant['business_name'] ?? 'DoodhBee',
                 (float)$invoice['final_amount'],
                 85,
                 "Milk INV-{$invoice['id']}"
@@ -223,7 +223,7 @@ $widthPx = $format === '58mm' ? 190 : 260;
             <?= e($settings['invoice_footer_note'] ?? 'Thank you! Pure milk daily.') ?>
         </div>
         <div style="font-size: 7.5px; color: #64748b; margin-top: 3px;">
-            DoodhDesk Zero-Dispute Invoicing
+            DoodhBee Zero-Dispute Invoicing
         </div>
     </div>
 </div>

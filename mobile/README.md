@@ -1,6 +1,6 @@
-# DoodhDesk Mobile App (Flutter for iOS & Android)
+# DoodhBee Mobile App (Flutter for iOS & Android)
 
-Cross-platform mobile application for **DoodhDesk** with **Offline-First Sync Engine**, designed for early morning milk deliveries and dairy operations.
+Cross-platform mobile application for **DoodhBee** with **Offline-First Sync Engine**, designed for early morning milk deliveries and dairy operations.
 
 ---
 
@@ -76,9 +76,9 @@ mobile/
 
 ### 2. Configure Backend Endpoint
 By default:
-- **Android Emulator**: connects to `http://10.0.2.2/doodhdesk/index.php/api`
-- **iOS Simulator**: connects to `http://localhost/doodhdesk/index.php/api`
-- **Physical Phone (over Wi-Fi)**: enter your PC's local LAN IP (e.g. `http://192.168.1.5/doodhdesk/index.php/api`) on the login screen.
+- **Android Emulator**: connects to `http://10.0.2.2/doodhbee/index.php/api`
+- **iOS Simulator**: connects to `http://localhost/doodhbee/index.php/api`
+- **Physical Phone (over Wi-Fi)**: enter your PC's local LAN IP (e.g. `http://192.168.1.5/doodhbee/index.php/api`) on the login screen.
 
 ### 3. Install Packages & Run
 ```bash

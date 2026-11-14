@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>DoodhDesk</string>
+	<string>DoodhBee</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -13,7 +13,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>doodhdesk_mobile</string>
+	<string>doodhbee_mobile</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -35,9 +35,9 @@
 
 	<!-- Bluetooth Permissions for Handheld Thermal Printer -->
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>DoodhDesk uses Bluetooth to connect to portable thermal receipt printers for on-the-spot doorstep milk delivery slips.</string>
+	<string>DoodhBee uses Bluetooth to connect to portable thermal receipt printers for on-the-spot doorstep milk delivery slips.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>DoodhDesk connects to Bluetooth ESC/POS printers.</string>
+	<string>DoodhBee connects to Bluetooth ESC/POS printers.</string>
 
 	<!-- WhatsApp Deep Link Scheme -->
 	<key>LSApplicationQueriesSchemes</key>

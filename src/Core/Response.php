@@ -64,7 +64,7 @@ final class Response
         }
         echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
 
-        if (defined('DOODHDESK_TEST_RUNNER') && DOODHDESK_TEST_RUNNER) {
+        if (defined('DOODHBEE_TEST_RUNNER') && DOODHBEE_TEST_RUNNER) {
             throw new HttpResponseException($data, $statusCode);
         }
 
@@ -87,7 +87,7 @@ final class Response
             header("Location: {$url}");
         }
 
-        if (defined('DOODHDESK_TEST_RUNNER') && DOODHDESK_TEST_RUNNER) {
+        if (defined('DOODHBEE_TEST_RUNNER') && DOODHBEE_TEST_RUNNER) {
             throw new HttpResponseException(['redirect' => $url], $statusCode);
         }
 

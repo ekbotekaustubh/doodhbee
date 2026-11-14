@@ -1,6 +1,6 @@
 {
-    "name": "doodhdesk/saas",
-    "description": "DoodhDesk Multi-Tenant SaaS for Milkmen and Dairy Delivery",
+    "name": "doodhbee/saas",
+    "description": "DoodhBee Multi-Tenant SaaS for Milkmen and Dairy Delivery",
     "type": "project",
     "require": {
         "php": ">=8.2",

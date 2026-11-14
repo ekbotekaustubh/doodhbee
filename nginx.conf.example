@@ -1,13 +1,13 @@
 # ==============================================================================
-# DoodhDesk SaaS - Production Nginx Virtual Host Configuration
-# Place in: /etc/nginx/sites-available/doodhdesk.conf
-# Enable with: sudo ln -s /etc/nginx/sites-available/doodhdesk.conf /etc/nginx/sites-enabled/
+# DoodhBee SaaS - Production Nginx Virtual Host Configuration
+# Place in: /etc/nginx/sites-available/doodhbee.conf
+# Enable with: sudo ln -s /etc/nginx/sites-available/doodhbee.conf /etc/nginx/sites-enabled/
 # ==============================================================================
 
 server {
     listen 80;
     listen [::]:80;
-    server_name app.doodhdesk.com;
+    server_name app.doodhbee.com;
 
     # Redirect all HTTP requests to HTTPS
     return 301 https://$host$request_uri;
@@ -16,15 +16,15 @@ server {
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
-    server_name app.doodhdesk.com;
+    server_name app.doodhbee.com;
 
     # Document Root (MUST point to public/ subdirectory for security)
-    root /var/www/doodhdesk/public;
+    root /var/www/doodhbee/public;
     index index.php index.html;
 
     # SSL Certificates (managed via certbot / Let's Encrypt)
-    # ssl_certificate /etc/letsencrypt/live/app.doodhdesk.com/fullchain.pem;
-    # ssl_certificate_key /etc/letsencrypt/live/app.doodhdesk.com/privkey.pem;
+    # ssl_certificate /etc/letsencrypt/live/app.doodhbee.com/fullchain.pem;
+    # ssl_certificate_key /etc/letsencrypt/live/app.doodhbee.com/privkey.pem;
     # include /etc/letsencrypt/options-ssl-nginx.conf;
     # ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
@@ -92,6 +92,6 @@ server {
     }
 
     # Logging
-    access_log /var/log/nginx/doodhdesk_access.log combined;
-    error_log /var/log/nginx/doodhdesk_error.log warn;
+    access_log /var/log/nginx/doodhbee_access.log combined;
+    error_log /var/log/nginx/doodhbee_error.log warn;
 }

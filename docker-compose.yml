@@ -1,5 +1,5 @@
 # ==============================================================================
-# DoodhDesk SaaS - Production Docker Compose Stack
+# DoodhBee SaaS - Production Docker Compose Stack
 # Usage:
 #   docker compose up -d --build
 #   docker compose exec app php scripts/migrate.php
@@ -11,41 +11,41 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: doodhdesk_app
+    container_name: doodhbee_app
     restart: unless-stopped
     ports:
       - "8080:80"
     environment:
-      APP_NAME: "DoodhDesk SaaS"
+      APP_NAME: "DoodhBee SaaS"
       APP_ENV: "production"
       APP_DEBUG: "false"
-      APP_URL: "https://app.doodhdesk.com"
+      APP_URL: "https://app.doodhbee.com"
       ALLOW_DEMO_MODE: "false"
       APP_USE_INDEX_IN_URL: "false"
       APP_REWRITE_ENABLED: "true"
       DB_HOST: "db"
       DB_PORT: "3306"
-      DB_DATABASE: "${DB_DATABASE:-doodhdesk_prod}"
-      DB_USERNAME: "${DB_USERNAME:-doodhdesk_user}"
+      DB_DATABASE: "${DB_DATABASE:-doodhbee_prod}"
+      DB_USERNAME: "${DB_USERNAME:-doodhbee_user}"
       DB_PASSWORD: "${DB_PASSWORD:-StrongDatabaseSecret123}"
     volumes:
-      - doodhdesk_uploads:/var/www/doodhdesk/public/uploads
-      - doodhdesk_storage:/var/www/doodhdesk/storage
+      - doodhbee_uploads:/var/www/doodhbee/public/uploads
+      - doodhbee_storage:/var/www/doodhbee/storage
     depends_on:
       db:
         condition: service_healthy
 
   db:
     image: mariadb:10.11
-    container_name: doodhdesk_db
+    container_name: doodhbee_db
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: "${DB_ROOT_PASSWORD:-RootStrongPassword123}"
-      MYSQL_DATABASE: "${DB_DATABASE:-doodhdesk_prod}"
-      MYSQL_USER: "${DB_USERNAME:-doodhdesk_user}"
+      MYSQL_DATABASE: "${DB_DATABASE:-doodhbee_prod}"
+      MYSQL_USER: "${DB_USERNAME:-doodhbee_user}"
       MYSQL_PASSWORD: "${DB_PASSWORD:-StrongDatabaseSecret123}"
     volumes:
-      - doodhdesk_db_data:/var/lib/mysql
+      - doodhbee_db_data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-RootStrongPassword123}"]
       interval: 5s
@@ -53,6 +53,6 @@ services:
       retries: 5
 
 volumes:
-  doodhdesk_db_data:
-  doodhdesk_uploads:
-  doodhdesk_storage:
+  doodhbee_db_data:
+  doodhbee_uploads:
+  doodhbee_storage:

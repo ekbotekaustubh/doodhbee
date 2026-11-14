@@ -71,6 +71,17 @@ final class PaymentApiController extends ApiBaseController
             $this->jsonError('Customer not found.', 404, 'NOT_FOUND');
         }
 
+        // Multi-tenant isolation guard: Verify invoice belongs to this tenant and customer
+        if ($invoiceId > 0) {
+            $invoice = $this->db->fetchOne(
+                "SELECT id, final_amount FROM invoices WHERE id = ? AND tenant_id = ? AND customer_id = ?",
+                [$invoiceId, $tenantId, $customerId]
+            );
+            if (!$invoice) {
+                $this->jsonError('Invoice not found or unauthorized for this customer and tenant.', 404, 'NOT_FOUND');
+            }
+        }
+
         $paymentId = 0;
         $this->db->transaction(function () use ($tenantId, $customerId, $invoiceId, $amount, $paymentDate, $method, $refNo, $notes, &$paymentId) {
             $this->db->execute(
@@ -97,7 +108,7 @@ final class PaymentApiController extends ApiBaseController
                         $newStatus = 'partial';
                     }
 
-                    $this->db->execute("UPDATE invoices SET payment_status = ? WHERE id = ?", [$newStatus, $invoiceId]);
+                    $this->db->execute("UPDATE invoices SET payment_status = ? WHERE id = ? AND tenant_id = ?", [$newStatus, $invoiceId, $tenantId]);
                 }
             }
         });

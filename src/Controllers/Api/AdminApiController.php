@@ -60,8 +60,8 @@ final class AdminApiController extends ApiBaseController
         $unitSize = (int)$request->input('paid_tier_unit_size', 100);
         $unitPrice = (float)$request->input('paid_tier_unit_price', 200.0);
         $currencySymbol = trim((string)$request->input('currency_symbol', '₹'));
-        $platformName = trim((string)$request->input('platform_name', 'DoodhDesk SaaS'));
-        $supportEmail = trim((string)$request->input('support_email', 'support@doodhdesk.com'));
+        $platformName = trim((string)$request->input('platform_name', 'DoodhBee SaaS'));
+        $supportEmail = trim((string)$request->input('support_email', 'support@doodhbee.com'));
         $supportPhone = trim((string)$request->input('support_phone', ''));
 
         $settings = [

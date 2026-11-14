@@ -1,6 +1,6 @@
-# DoodhDesk SaaS — Functional Specification Document
+# DoodhBee SaaS — Functional Specification Document
 
-**Product Name:** DoodhDesk  
+**Product Name:** DoodhBee  
 **System Type:** Multi-Tenant SaaS Web Application for Milkmen & Dairy Delivery Businesses  
 **Technology Stack:** PHP 8.2+ (Strict Types), MySQL 8.0+ / MariaDB, Tailwind CSS, Alpine.js / HTMX, Dompdf  
 **Document Version:** 1.0.0  
@@ -40,8 +40,8 @@ Local milkmen, dairy farmers, and daily subscription delivery businesses face pe
 - Surcharges (transport fee, bottle deposits) and taxes (GST) are calculated haphazardly.
 - Milkmen lose 5% to 15% of monthly revenue due to billing friction, manual recalculations, and disputed bills.
 
-### 1.2 The DoodhDesk Solution
-DoodhDesk is a mobile-first, multi-tenant SaaS application purpose-built for the dairy delivery ecosystem:
+### 1.2 The DoodhBee Solution
+DoodhBee is a mobile-first, multi-tenant SaaS application purpose-built for the dairy delivery ecosystem:
 1. **Zero-Dispute Real-Time Delivery Tracking:** Daily run-sheet with 1-tap toggling (`Delivered`, `Missed / Skipped`, `Customer On Leave`).
 2. **Strict Zero-Charge Rule:** Skipped or leave days strictly log `0.00` quantity and `₹0.00` charge, eliminating billing disputes.
 3. **Itemized Multi-Product Subscriptions:** Independent morning/evening shifts, quantities, and rates for Cow Milk, Buffalo Milk, Paneer, Curd, and Ghee.
@@ -62,7 +62,7 @@ DoodhDesk is a mobile-first, multi-tenant SaaS application purpose-built for the
 
 ## 3. Multi-Tenancy Architecture & Security Isolation
 
-DoodhDesk uses a **Single-Database Shared-Schema Multi-Tenant Architecture**:
+DoodhBee uses a **Single-Database Shared-Schema Multi-Tenant Architecture**:
 - Every tenant-scoped entity (`customers`, `customer_subscriptions`, `products`, `daily_deliveries`, `daily_delivery_items`, `customer_leaves`, `invoices`, `payments`, `tenant_settings`, `tenant_additional_charges`, `tenant_subscriptions`) contains a mandatory `tenant_id` foreign key referencing `tenants(id)`.
 - All database queries strictly scope data via `tenant_id = ?` to ensure **100% data isolation**. Tenant A can never view or manipulate Tenant B's customers, deliveries, or invoices.
 - Composite indexes (e.g. `(tenant_id, delivery_date, shift)`, `(tenant_id, customer_id)`) guarantee high-speed query execution under concurrent tenant loads.
@@ -95,7 +95,7 @@ graph TD
   - `paid_tier_unit_size`: Customer capacity per purchased block (Default: `100` customers).
   - `paid_tier_unit_price`: Price per block per billing period (Default: `₹200.00`).
   - `currency_symbol`: Global currency symbol (Default: `₹`).
-  - `platform_name`: SaaS platform branding (`DoodhDesk SaaS`).
+  - `platform_name`: SaaS platform branding (`DoodhBee SaaS`).
   - `support_email` & `support_phone`: Platform support details.
 - **Tenant Management:**
   - View all registered dairies with customer counts and active quota.
@@ -113,7 +113,7 @@ graph TD
     2. Default `tenant_settings` with tax disabled and UPI placeholders.
     3. Default `tenant_subscriptions` with Free Tier (`5` customer quota).
     4. Default product catalog (`Cow Milk` @ ₹60.00, `Buffalo Milk` @ ₹70.00).
-  - Immediate auto-login with welcome alert: *"Welcome to DoodhDesk! Your free account with 5 customer slots is ready."*
+  - Immediate auto-login with welcome alert: *"Welcome to DoodhBee! Your free account with 5 customer slots is ready."*
 - **Quick Demo Switcher:**
   - 1-click bottom switcher bar for testing:
     - 🥛 **Krishna Dairy (Paid Tier):** 105 capacity, 6 active customers, GST 5%, custom surcharges, pre-generated invoices.
@@ -462,7 +462,7 @@ $$\text{Can Create/Activate} \iff \text{Current Active Customers} < \text{Allowe
 
 ## 8. Automated Test Suite Specification
 
-The test suite in [`tests/test_suite.php`](file:///var/www/html/doodhdesk/tests/test_suite.php) automatically verifies all 13 core business rules across the platform:
+The test suite in [`tests/test_suite.php`](file:///var/www/html/doodhbee/tests/test_suite.php) automatically verifies all 13 core business rules across the platform:
 
 | Test ID | Test Scenario | Verification Objective |
 |---|---|---|
@@ -482,5 +482,5 @@ The test suite in [`tests/test_suite.php`](file:///var/www/html/doodhdesk/tests/
 
 **To run the test suite:**
 ```bash
-php8.4 /var/www/html/doodhdesk/tests/test_suite.php
+php8.4 /var/www/html/doodhbee/tests/test_suite.php
 ```

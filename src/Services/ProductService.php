@@ -153,12 +153,18 @@ final class ProductService
 
         foreach ($subscriptions as $sub) {
             $productId = (int)($sub['product_id'] ?? 0);
-            $qty = (float)($sub['quantity'] ?? 0.0);
+            $qty = (float)($sub['quantity'] ?? $sub['default_quantity'] ?? 0.0);
             $rate = isset($sub['custom_rate']) && $sub['custom_rate'] !== '' && (float)$sub['custom_rate'] > 0 ? (float)$sub['custom_rate'] : null;
             $shift = (string)($sub['shift'] ?? 'both');
             $isActive = !empty($sub['is_active']);
 
             if ($productId <= 0 || $qty <= 0 || !$isActive) {
+                continue;
+            }
+
+            // Multi-tenant isolation guard: Product MUST belong to this tenant
+            $prod = $this->db->fetchOne("SELECT code, default_rate FROM products WHERE id = ? AND tenant_id = ?", [$productId, $tenantId]);
+            if (!$prod) {
                 continue;
             }
 
@@ -168,15 +174,12 @@ final class ProductService
                 [$tenantId, $customerId, $productId, $qty, $rate, $shift]
             );
 
-            $prod = $this->db->fetchOne("SELECT code, default_rate FROM products WHERE id = ? AND tenant_id = ?", [$productId, $tenantId]);
-            if ($prod) {
-                $activeCodes[] = $prod['code'];
-                $totalQty += $qty;
-                if ($rate !== null) {
-                    $primaryRate = $rate;
-                } else {
-                    $primaryRate = (float)$prod['default_rate'];
-                }
+            $activeCodes[] = $prod['code'];
+            $totalQty += $qty;
+            if ($rate !== null) {
+                $primaryRate = $rate;
+            } else {
+                $primaryRate = (float)$prod['default_rate'];
             }
         }
 

@@ -66,7 +66,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     final balance = (_invoice?['final_amount'] as num?)?.toDouble() ?? 0.0;
     final customerName = _invoice?['customer_name'] ?? 'Customer';
 
-    final upiUri = 'upi://pay?pa=$upiId&pn=DoodhDesk%20Dairy&am=${balance.toStringAsFixed(2)}&cu=INR&tn=Milk%20Bill%20for%20$customerName';
+    final upiUri = 'upi://pay?pa=$upiId&pn=DoodhBee%20Dairy&am=${balance.toStringAsFixed(2)}&cu=INR&tn=Milk%20Bill%20for%20$customerName';
 
     showDialog(
       context: context,

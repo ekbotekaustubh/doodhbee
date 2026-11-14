@@ -22,7 +22,7 @@ final class QuotaService
             'paid_tier_unit_size' => 100,
             'paid_tier_unit_price' => 200.00,
             'currency_symbol' => '₹',
-            'platform_name' => 'DoodhDesk SaaS'
+            'platform_name' => 'DoodhBee SaaS'
         ];
         foreach ($rows as $r) {
             $key = $r['setting_key'];
