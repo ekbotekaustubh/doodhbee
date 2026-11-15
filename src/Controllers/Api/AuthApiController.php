@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controllers\Api;
 
 use App\Core\Auth;
+use App\Core\RateLimiter;
 use App\Core\Request;
 use App\Services\ProductService;
 use App\Services\QuotaService;
@@ -35,14 +36,31 @@ final class AuthApiController extends ApiBaseController
             $this->jsonError('Validation failed', 422, 'VALIDATION_ERROR', $errors);
         }
 
+        // Rate Limiting Guard: Max 5 failed attempts per 15 minutes
+        $clientIp = (string)($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1');
+        $throttleKey = "api_login:{$clientIp}:" . strtolower($login);
+        $rateStatus = RateLimiter::check($throttleKey, 5, 900);
+        if ($rateStatus['limited']) {
+            if (!headers_sent()) {
+                header("Retry-After: {$rateStatus['retry_after']}");
+            }
+            $this->jsonError("Too many failed login attempts. Please try again in {$rateStatus['retry_after']} seconds.", 429, 'TOO_MANY_REQUESTS', [
+                'retry_after' => $rateStatus['retry_after']
+            ]);
+        }
+
         $tenant = $this->db->fetchOne(
             "SELECT * FROM tenants WHERE phone = ? OR email = ?",
             [$login, $login]
         );
 
         if (!$tenant || !password_verify($password, $tenant['password_hash'])) {
+            RateLimiter::hit($throttleKey, 900);
             $this->jsonError('Invalid phone/email or password.', 401, 'INVALID_CREDENTIALS');
         }
+
+        // Reset throttle on successful credentials
+        RateLimiter::reset($throttleKey);
 
         if ($tenant['status'] === 'suspended') {
             $this->jsonError('Account is suspended. Please contact platform administration.', 403, 'ACCOUNT_SUSPENDED');
@@ -199,10 +217,26 @@ final class AuthApiController extends ApiBaseController
             $this->jsonError('Validation failed', 422, 'VALIDATION_ERROR', $errors);
         }
 
+        // Rate Limiting Guard: Max 5 failed attempts per 15 minutes
+        $clientIp = (string)($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1');
+        $throttleKey = "api_admin_login:{$clientIp}:" . strtolower($email);
+        $rateStatus = RateLimiter::check($throttleKey, 5, 900);
+        if ($rateStatus['limited']) {
+            if (!headers_sent()) {
+                header("Retry-After: {$rateStatus['retry_after']}");
+            }
+            $this->jsonError("Too many failed admin login attempts. Please try again in {$rateStatus['retry_after']} seconds.", 429, 'TOO_MANY_REQUESTS', [
+                'retry_after' => $rateStatus['retry_after']
+            ]);
+        }
+
         $admin = $this->db->fetchOne("SELECT * FROM super_admins WHERE email = ?", [$email]);
         if (!$admin || !password_verify($password, $admin['password_hash'])) {
+            RateLimiter::hit($throttleKey, 900);
             $this->jsonError('Invalid admin email or password.', 401, 'INVALID_CREDENTIALS');
         }
+
+        RateLimiter::reset($throttleKey);
 
         $token = Auth::createApiToken((int)$admin['id'], 'admin', $deviceName, 30);
 

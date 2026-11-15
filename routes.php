@@ -27,6 +27,11 @@ return function (Router $router): void {
         }
 
         $statusCode = ($status === 'healthy') ? 200 : 503;
+        $warnings = [];
+        if (\App\Core\Env::isProduction() && isDemoMode()) {
+            $warnings[] = 'CRITICAL: ALLOW_DEMO_MODE is active in production environment! Set ALLOW_DEMO_MODE=false.';
+        }
+
         \App\Core\Response::json([
             'status' => $status,
             'timestamp' => date('c'),
@@ -41,6 +46,12 @@ return function (Router $router): void {
                 'logs' => is_writable(__DIR__ . '/storage/logs') ? 'writable' : 'read-only',
                 'uploads' => is_writable(__DIR__ . '/public/uploads') ? 'writable' : 'read-only',
             ],
+            'security' => [
+                'env_protected' => file_exists(__DIR__ . '/.env.php'),
+                'rate_limiting' => 'active',
+                'demo_mode_allowed' => isDemoMode(),
+            ],
+            'warnings' => $warnings,
             'error' => $error,
         ], $statusCode);
     });

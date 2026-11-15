@@ -13,6 +13,7 @@ final class Request
     private ?array $jsonBody = null;
     private array $files;
     private array $headers;
+    private bool $isInternal = false;
 
     public function __construct()
     {
@@ -52,7 +53,22 @@ final class Request
             $req->headers['authorization'] = 'Bearer ' . $bearerToken;
             $_SERVER['HTTP_AUTHORIZATION'] = 'Bearer ' . $bearerToken;
         }
+        $req->isInternal = true;
         return $req;
+    }
+
+    public function isInternal(): bool
+    {
+        return $this->isInternal;
+    }
+
+    public function hasBearerToken(): bool
+    {
+        $auth = $this->getHeader('authorization') 
+            ?? $_SERVER['HTTP_AUTHORIZATION'] 
+            ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] 
+            ?? null;
+        return !empty($auth) && str_starts_with(trim((string)$auth), 'Bearer ');
     }
 
     private function collectHeaders(): array

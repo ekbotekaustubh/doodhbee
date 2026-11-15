@@ -1,6 +1,8 @@
 /vendor/
 composer.phar
 .env
+.env.php
+.env.*.php
 /public/uploads/*
 !/public/uploads/.gitkeep
 /public/download/*

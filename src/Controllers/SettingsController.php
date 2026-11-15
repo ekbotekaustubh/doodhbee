@@ -146,25 +146,35 @@ final class SettingsController
                 'image/jpeg' => 'jpg',
                 'image/png' => 'png',
                 'image/webp' => 'webp',
-                'image/svg+xml' => 'svg'
             ];
+
+            if ($file['size'] > 2 * 1024 * 1024) {
+                Auth::flash('error', 'Uploaded QR image exceeds the 2MB size limit.');
+                Response::redirect(url('/settings'));
+                return;
+            }
+
             $finfo = finfo_open(FILEINFO_MIME_TYPE);
             $mime = finfo_file($finfo, $file['tmp_name']);
             finfo_close($finfo);
 
-            if (isset($allowedTypes[$mime])) {
-                $ext = $allowedTypes[$mime];
-                $uploadDir = __DIR__ . '/../../public/uploads';
-                if (!is_dir($uploadDir)) {
-                    mkdir($uploadDir, 0755, true);
-                }
-                $tenantId = Auth::tenantId();
-                $randomHex = bin2hex(random_bytes(8));
-                $filename = "qr_tenant_{$tenantId}_{$randomHex}.{$ext}";
-                $dest = "{$uploadDir}/{$filename}";
-                if (move_uploaded_file($file['tmp_name'], $dest)) {
-                    $qrPath = "uploads/{$filename}";
-                }
+            if (!isset($allowedTypes[$mime])) {
+                Auth::flash('error', 'Invalid image format. Only PNG, JPG, and WebP images are permitted for QR codes (SVG is blocked for security).');
+                Response::redirect(url('/settings'));
+                return;
+            }
+
+            $ext = $allowedTypes[$mime];
+            $uploadDir = dirname(__DIR__, 2) . '/public/uploads';
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0755, true);
+            }
+            $tenantId = Auth::tenantId();
+            $randomHex = bin2hex(random_bytes(8));
+            $filename = "qr_tenant_{$tenantId}_{$randomHex}.{$ext}";
+            $dest = "{$uploadDir}/{$filename}";
+            if (move_uploaded_file($file['tmp_name'], $dest)) {
+                $qrPath = "uploads/{$filename}";
             }
         }
 

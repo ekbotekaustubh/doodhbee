@@ -62,12 +62,28 @@ final class Router
         $path = '/' . trim($request->path(), '/');
 
         // Enforce CSRF token protection on non-API state-changing requests
-        if (!in_array($method, ['GET', 'HEAD', 'OPTIONS'], true) && !str_starts_with($path, '/api')) {
-            if (!$request->validateCsrf()) {
-                http_response_code(419);
-                Auth::flash('error', 'Your session or security token expired. Please try again.');
-                Response::redirect($_SERVER['HTTP_REFERER'] ?? url('/login'));
-                return;
+        if (!in_array($method, ['GET', 'HEAD', 'OPTIONS'], true)) {
+            if (!str_starts_with($path, '/api')) {
+                if (!$request->validateCsrf()) {
+                    http_response_code(419);
+                    Auth::flash('error', 'Your session or security token expired. Please try again.');
+                    Response::redirect($_SERVER['HTTP_REFERER'] ?? url('/login'));
+                    return;
+                }
+            } else {
+                // API CSRF Protection: If an external HTTP call mutates state via session cookies rather than a Bearer token,
+                // enforce X-CSRF-Token or X-Requested-With header to eliminate Cross-Site Request Forgery.
+                $isPublicAuth = in_array($path, ['/api/auth/login', '/api/auth/register', '/api/admin/auth/login'], true);
+                if (!$request->isInternal() && !$isPublicAuth && !$request->hasBearerToken()) {
+                    $hasAntiCsrfHeader = strtolower((string)$request->getHeader('x-requested-with')) === 'xmlhttprequest';
+                    if (!$hasAntiCsrfHeader && !$request->validateCsrf()) {
+                        Response::json([
+                            'success' => false,
+                            'error' => 'CSRF verification failed: State-changing API requests using session cookies require an X-CSRF-Token or X-Requested-With header. Alternatively, use Bearer token authentication.',
+                            'code' => 'CSRF_ERROR'
+                        ], 419);
+                    }
+                }
             }
         }
 

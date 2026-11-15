@@ -226,7 +226,7 @@ final class CustomerApiController extends ApiBaseController
             $this->productService->saveCustomerSubscriptions($tenantId, $newCustomerId, $subsList);
         });
 
-        $created = $this->db->fetchOne("SELECT * FROM customers WHERE id = ?", [$newCustomerId]);
+        $created = $this->db->fetchOne("SELECT * FROM customers WHERE id = ? AND tenant_id = ?", [$newCustomerId, $tenantId]);
         $created['subscriptions'] = $subsList;
 
         $this->jsonSuccess($created, 'Customer created successfully', 201);
@@ -313,8 +313,8 @@ final class CustomerApiController extends ApiBaseController
             }
         });
 
-        $updated = $this->db->fetchOne("SELECT * FROM customers WHERE id = ?", [$id]);
-        $updated['subscriptions'] = $this->db->fetchAll("SELECT * FROM customer_subscriptions WHERE customer_id = ?", [$id]);
+        $updated = $this->db->fetchOne("SELECT * FROM customers WHERE id = ? AND tenant_id = ?", [$id, $tenantId]);
+        $updated['subscriptions'] = $this->db->fetchAll("SELECT * FROM customer_subscriptions WHERE customer_id = ? AND tenant_id = ?", [$id, $tenantId]);
 
         $this->jsonSuccess($updated, 'Customer updated successfully');
     }

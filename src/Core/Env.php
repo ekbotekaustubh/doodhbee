@@ -19,6 +19,33 @@ final class Env
         }
 
         $baseDir = $dir ?? dirname(__DIR__, 2);
+        $phpEnvPath = rtrim($baseDir, '/') . '/.env.php';
+
+        // 1. Prefer secure PHP-guarded environment file (.env.php) if present
+        if (file_exists($phpEnvPath) && is_readable($phpEnvPath)) {
+            if (!defined('DOODHBEE_INTERNAL')) {
+                define('DOODHBEE_INTERNAL', true);
+            }
+            $phpVars = require $phpEnvPath;
+            if (is_array($phpVars)) {
+                foreach ($phpVars as $key => $val) {
+                    self::$cache[$key] = $val;
+                    $strVal = is_bool($val) ? ($val ? 'true' : 'false') : (string)$val;
+                    if (getenv($key) === false) {
+                        putenv("{$key}={$strVal}");
+                    }
+                    if (!isset($_ENV[$key])) {
+                        $_ENV[$key] = $val;
+                    }
+                    if (!isset($_SERVER[$key])) {
+                        $_SERVER[$key] = $val;
+                    }
+                }
+                self::$loaded = true;
+                return;
+            }
+        }
+
         $filePath = rtrim($baseDir, '/') . '/.env';
 
         if (!file_exists($filePath) || !is_readable($filePath)) {

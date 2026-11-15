@@ -43,6 +43,24 @@ final class QuotaService
         return $this->getSystemSettings();
     }
 
+    public function getFreeCustomerLimit(): int
+    {
+        $settings = $this->getSystemSettings();
+        return (int)($settings['free_customer_limit'] ?? 5);
+    }
+
+    public function getPaidTierUnitSize(): int
+    {
+        $settings = $this->getSystemSettings();
+        return (int)($settings['paid_tier_unit_size'] ?? 100);
+    }
+
+    public function getPaidTierUnitPrice(): float
+    {
+        $settings = $this->getSystemSettings();
+        return (float)($settings['paid_tier_unit_price'] ?? 200.00);
+    }
+
     public function getTenantQuota(int $tenantId): array
     {
         $sys = $this->getSystemSettings();

@@ -168,7 +168,7 @@ final class AuthController
             Response::redirect(url('/'));
         } elseif ($role === 'admin') {
             $res = ApiClient::post('/api/admin/auth/login', [
-                'email' => 'admin@dairyflow.com',
+                'email' => 'admin@doodhbee.com',
                 'password' => 'admin123',
                 'device_name' => 'Demo Switcher',
             ]);

@@ -662,6 +662,65 @@ runApiTest("API Multi-Tenant Isolation: Cross-Tenant Data Leaks Strictly Blocked
     }
 }, $passed, $failed);
 
+// ==========================================
+// TEST 15: Security Hardening - API CSRF Guard, Rate Limiting & Sensitive File Lockdown
+// ==========================================
+runApiTest('API Security Hardening: CSRF Guard, Auth Rate Limiting & Sensitive File Protection', function () use ($db, $createdProductId) {
+    // 1. Rate Limiting verification
+    $testLogin = '9999999999';
+    $clientIp = (string)($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1');
+    $throttleKey = "api_login:{$clientIp}:{$testLogin}";
+    \App\Core\RateLimiter::reset($throttleKey);
+
+    for ($i = 1; $i <= 5; $i++) {
+        $res = callApi('POST', '/api/auth/login', [
+            'login' => $testLogin,
+            'password' => 'wrongpassword_' . $i,
+        ]);
+        if ($res['status'] !== 401) {
+            throw new \Exception("Expected 401 for bad password attempt {$i}, got {$res['status']}");
+        }
+    }
+
+    // 6th attempt must trigger 429 TOO_MANY_REQUESTS
+    $throttledRes = callApi('POST', '/api/auth/login', [
+        'login' => $testLogin,
+        'password' => 'wrongpassword_6',
+    ]);
+    if ($throttledRes['status'] !== 429) {
+        throw new \Exception("Rate limiter failed: 6th attempt returned status {$throttledRes['status']} instead of 429");
+    }
+    if (($throttledRes['body']['code'] ?? '') !== 'TOO_MANY_REQUESTS') {
+        throw new \Exception("Rate limiter failed: Expected code TOO_MANY_REQUESTS, got " . ($throttledRes['body']['code'] ?? ''));
+    }
+    \App\Core\RateLimiter::reset($throttleKey);
+
+    // 2. API CSRF Guard verification: External mutating call without Bearer and without CSRF token/header
+    \App\Core\Auth::startSession();
+    $_SESSION['tenant'] = [
+        'id' => 1,
+        'business_name' => 'Demo Tenant',
+        'owner_name' => 'Demo',
+        'phone' => '9822000001',
+        'status' => 'active',
+    ];
+    unset($_SERVER['HTTP_X_REQUESTED_WITH'], $_SERVER['HTTP_X_CSRF_TOKEN'], $_POST['csrf_token']);
+
+    $csrfBlocked = callApi('POST', '/api/products/' . ($createdProductId ?: 1) . '/toggle', [], null);
+    if ($csrfBlocked['status'] !== 419) {
+        throw new \Exception("CSRF guard failed: State-changing API call using session without CSRF header should return 419, got {$csrfBlocked['status']}");
+    }
+
+    // 3. Sensitive file protection check
+    if (file_exists(__DIR__ . '/../.env.php')) {
+        $cmd = 'php8.4 -r "require \'' . __DIR__ . '/../.env.php\';" 2>&1';
+        $output = (string)shell_exec($cmd);
+        if (!str_contains($output, '403 Forbidden: Direct access to environment configuration is denied')) {
+            throw new \Exception("Direct access to .env.php was not forbidden: {$output}");
+        }
+    }
+}, $passed, $failed);
+
 // Clean up test customer and test product
 if ($newCustomerId > 0) {
     $db->execute("DELETE FROM customers WHERE id = ?", [$newCustomerId]);
