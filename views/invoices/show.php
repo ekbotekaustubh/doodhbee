@@ -1,4 +1,4 @@
-<div class="space-y-6 max-w-4xl mx-auto" x-data="{ showPaymentModal: false }">
+<div class="space-y-6 max-w-4xl mx-auto" x-data="{ showPaymentModal: false, showWhatsAppModal: false }">
     <!-- Top Action Bar -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <a href="<?= url("/invoices?year={$invoice['billing_year']}&month={$invoice['billing_month']}") ?>" class="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-slate-900">
@@ -17,8 +17,13 @@
                 </button>
             </form>
 
+            <!-- WhatsApp Share Button -->
+            <a href="<?= url("/invoices/{$invoice['id']}/whatsapp") ?>" target="_blank" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-sm flex items-center gap-1.5 transition" title="Send pre-filled bill via WhatsApp">
+                <span>💬 WhatsApp Bill</span>
+            </a>
+
             <!-- Record Payment Button -->
-            <button @click="showPaymentModal = true" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-sm flex items-center gap-1.5">
+            <button @click="showPaymentModal = true" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-sm flex items-center gap-1.5">
                 <span>💰 Record Payment</span>
             </button>
 

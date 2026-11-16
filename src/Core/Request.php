@@ -189,6 +189,11 @@ final class Request
         return $this->headers[strtolower($name)] ?? null;
     }
 
+    public function server(string $key, mixed $default = null): mixed
+    {
+        return $_SERVER[$key] ?? $default;
+    }
+
     public function isHtmx(): bool
     {
         return strtolower((string)$this->getHeader('hx-request')) === 'true';

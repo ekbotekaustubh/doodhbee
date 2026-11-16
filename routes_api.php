@@ -111,6 +111,10 @@ return function (Router $router): void {
     $router->post('/api/invoices/generate-batch', [InvoiceApiController::class, 'generateBatch'], ['api.tenant']);
     $router->post('/api/invoices/generate-single', [InvoiceApiController::class, 'generateSingle'], ['api.tenant']);
     $router->get('/api/invoices/{id}/share', [InvoiceApiController::class, 'share'], ['api.tenant']);
+    $router->post('/api/invoices/whatsapp-queue', [InvoiceApiController::class, 'queueWhatsApp'], ['api.tenant']);
+    $router->get('/api/invoices/whatsapp-queue', [InvoiceApiController::class, 'queueStats'], ['api.tenant']);
+    $router->post('/api/invoices/whatsapp-queue/{id}/retry', [InvoiceApiController::class, 'retryWhatsApp'], ['api.tenant']);
+    $router->get('/api/public/invoices/{id}', [InvoiceApiController::class, 'publicShow']);
 
     // 8. Payments & Ledger
     $router->get('/api/invoices/{id}/payments', [PaymentApiController::class, 'invoicePayments'], ['api.tenant']);

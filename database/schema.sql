@@ -61,6 +61,9 @@ CREATE TABLE tenant_settings (
     upi_id VARCHAR(100) NULL,
     upi_qr_path VARCHAR(255) NULL,
     invoice_footer_note TEXT NULL,
+    whatsapp_provider VARCHAR(50) DEFAULT 'browser',
+    whatsapp_api_token TEXT NULL,
+    whatsapp_phone_number_id VARCHAR(100) NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
     UNIQUE KEY uq_tenant_setting (tenant_id)
@@ -249,3 +252,29 @@ CREATE TABLE api_tokens (
     FOREIGN KEY (admin_id) REFERENCES super_admins(id) ON DELETE CASCADE,
     INDEX idx_api_tokens (token_hash, token_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 13. WhatsApp Outbox & Audit Queue
+CREATE TABLE IF NOT EXISTS whatsapp_messages (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id INT NOT NULL,
+    invoice_id INT NOT NULL,
+    customer_id INT NOT NULL,
+    recipient_phone VARCHAR(20) NOT NULL,
+    recipient_name VARCHAR(150) NOT NULL,
+    message_body TEXT NOT NULL,
+    status ENUM('pending', 'processing', 'sent', 'failed', 'cancelled') DEFAULT 'pending',
+    attempts TINYINT DEFAULT 0,
+    max_attempts TINYINT DEFAULT 3,
+    error_message TEXT NULL,
+    provider VARCHAR(50) DEFAULT 'browser',
+    provider_message_id VARCHAR(100) NULL,
+    sent_at DATETIME NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+    FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE,
+    FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
+    INDEX idx_tenant_status (tenant_id, status),
+    INDEX idx_pending_queue (status, attempts, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+

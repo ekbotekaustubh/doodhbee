@@ -101,6 +101,10 @@ return function (Router $router): void {
     $router->get('/invoices/{id}/thermal', [InvoiceController::class, 'printThermal'], ['tenant']);
     $router->get('/invoices/{id}/pdf', [InvoiceController::class, 'downloadPdf'], ['tenant']);
     $router->post('/invoices/{id}/payment', [InvoiceController::class, 'recordPayment'], ['tenant']);
+    $router->get('/invoices/{id}/whatsapp', [InvoiceController::class, 'whatsappSingle'], ['tenant']);
+    $router->post('/invoices/whatsapp/bulk-queue', [InvoiceController::class, 'whatsappBulkQueue'], ['tenant']);
+    $router->post('/invoices/whatsapp/retry/{id}', [InvoiceController::class, 'whatsappRetry'], ['tenant']);
+    $router->get('/bill/{id}/pdf', [InvoiceController::class, 'publicPdf']);
 
     // 6. Settings, Taxes, Surcharges & Subscription
     $router->get('/settings', [SettingsController::class, 'index'], ['tenant']);

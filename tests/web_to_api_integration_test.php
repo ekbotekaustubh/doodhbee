@@ -93,6 +93,12 @@ runWebTest("InvoiceController: Invoices List & Show via API", function () {
     if (!str_contains($html, 'Invoices')) {
         throw new \Exception("Invoice list failed to render data from /api/invoices");
     }
+    if (!str_contains($html, 'WhatsApp Web Runner')) {
+        throw new \Exception("Invoice list missing WhatsApp Web Runner component");
+    }
+    if (!str_contains($html, 'Queue for Cron')) {
+        throw new \Exception("Invoice list missing Queue for Cron action");
+    }
 
     // Test invoice show
     $db = \App\Core\Database::getInstance();
@@ -104,6 +110,20 @@ runWebTest("InvoiceController: Invoices List & Show via API", function () {
     $showHtml = ob_get_clean();
     if (!str_contains($showHtml, 'Invoice #') && !str_contains($showHtml, 'Tax Invoice')) {
         throw new \Exception("Invoice show failed to render invoice details from /api/invoices/{$invId}");
+    }
+    if (!str_contains($showHtml, 'WhatsApp Bill')) {
+        throw new \Exception("Invoice show missing WhatsApp Bill button");
+    }
+
+    // Test whatsappSingle (Redirect)
+    try {
+        $controller->whatsappSingle(new Request(), ['id' => $invId]);
+        throw new \Exception("whatsappSingle should have redirected to WhatsApp URL");
+    } catch (\App\Core\HttpResponseException $e) {
+        $redirUrl = $e->data['redirect'] ?? '';
+        if (!str_contains($redirUrl, 'api.whatsapp.com/send') && !str_contains($redirUrl, 'wa.me')) {
+            throw new \Exception("whatsappSingle redirected to invalid URL: {$redirUrl}");
+        }
     }
 }, $passed, $failed);
 

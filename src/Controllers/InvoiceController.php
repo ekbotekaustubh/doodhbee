@@ -43,6 +43,10 @@ final class InvoiceController
             }
         }
 
+        // Fetch WhatsApp Queue Stats via REST API
+        $queueRes = ApiClient::get('/api/invoices/whatsapp-queue');
+        $queueStats = $queueRes['data'] ?? ['pending' => 0, 'processing' => 0, 'sent' => 0, 'failed' => 0, 'total' => 0];
+
         View::render('invoices/index', [
             'invoices' => $invoices,
             'year' => $year,
@@ -52,6 +56,7 @@ final class InvoiceController
             'totalPaid' => $totalPaid,
             'unpaidCount' => $unpaidCount,
             'activeCustomersCount' => $activeCustomersCount,
+            'queueStats' => $queueStats,
             'success' => Auth::flash('success'),
             'error' => Auth::flash('error'),
         ], 'main');
@@ -240,6 +245,97 @@ final class InvoiceController
         }
 
         Response::redirect(url("/invoices/{$invoiceId}"));
+    }
+
+    public function whatsappSingle(Request $request, array $params): void
+    {
+        $id = (int)($params['id'] ?? 0);
+        $res = ApiClient::get("/api/invoices/{$id}/share");
+
+        if (!$res['success'] || empty($res['data']['whatsapp_url'])) {
+            Auth::flash('error', $res['error'] ?? 'Failed to generate WhatsApp share link.');
+            Response::redirect(url('/invoices'));
+        }
+
+        $waUrl = $res['data']['whatsapp_url'];
+
+        // If client requests JSON, return it
+        if ($request->isAjax() || str_contains((string)($request->getHeader('accept') ?? $request->server('HTTP_ACCEPT', '')), 'application/json')) {
+            Response::json($res['data']);
+        }
+
+        Response::redirect($waUrl);
+    }
+
+    public function whatsappBulkQueue(Request $request): void
+    {
+        $invoiceIds = $request->post('invoice_ids');
+        $year = (int)$request->post('year', (int)date('Y'));
+        $month = (int)$request->post('month', (int)date('m'));
+
+        if (empty($invoiceIds) || !is_array($invoiceIds)) {
+            Auth::flash('error', 'No invoices selected to send.');
+            Response::redirect(url("/invoices?year={$year}&month={$month}"));
+        }
+
+        $res = ApiClient::post('/api/invoices/whatsapp-queue', [
+            'invoice_ids' => array_map('intval', $invoiceIds),
+        ]);
+
+        if ($res['success']) {
+            $enqueued = $res['data']['enqueued_count'] ?? count($invoiceIds);
+            Auth::flash('success', "Queued {$enqueued} invoices for background WhatsApp delivery!");
+        } else {
+            Auth::flash('error', $res['error'] ?? 'Failed to enqueue WhatsApp messages.');
+        }
+
+        Response::redirect(url("/invoices?year={$year}&month={$month}"));
+    }
+
+    public function whatsappRetry(Request $request, array $params): void
+    {
+        $id = (int)($params['id'] ?? 0);
+        $year = (int)$request->get('year', (int)date('Y'));
+        $month = (int)$request->get('month', (int)date('m'));
+
+        $res = ApiClient::post("/api/invoices/whatsapp-queue/{$id}/retry");
+
+        if ($res['success']) {
+            Auth::flash('success', 'Message re-queued for delivery.');
+        } else {
+            Auth::flash('error', $res['error'] ?? 'Failed to re-queue message.');
+        }
+
+        Response::redirect(url("/invoices?year={$year}&month={$month}"));
+    }
+
+    public function publicPdf(Request $request, array $params): void
+    {
+        $id = (int)($params['id'] ?? 0);
+        $token = (string)$request->get('token', '');
+
+        $res = ApiClient::get("/api/public/invoices/{$id}", ['token' => $token]);
+        if (!$res['success'] || empty($res['data']['invoice'])) {
+            Response::error($res['error'] ?? 'Invoice not found or unauthorized access.', 403);
+        }
+
+        $data = $res['data'];
+        $invoice = $data['invoice'];
+        $breakdown = $this->ensureBreakdownMatrix($data['breakdown'] ?? [], $invoice);
+        $tenant = $data['tenant'] ?? [];
+        $settings = $data['settings'] ?? [];
+
+        $html = View::renderPartial('invoices/a4', [
+            'invoice' => $invoice,
+            'breakdown' => $breakdown,
+            'tenant' => $tenant,
+            'settings' => $settings,
+            'isPdf' => true,
+        ]);
+
+        $cleanCustName = preg_replace('/[^a-zA-Z0-9_-]/', '_', (string)($invoice['customer_name'] ?? 'Bill'));
+        $filename = "Milk-Bill-{$invoice['billing_year']}-{$invoice['billing_month']}-{$cleanCustName}.pdf";
+        PdfExportService::streamPdf($html, $filename, 'A4');
     }
 
     private function ensureBreakdownMatrix(array $breakdown, array $invoice): array

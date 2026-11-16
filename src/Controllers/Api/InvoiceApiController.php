@@ -5,15 +5,18 @@ namespace App\Controllers\Api;
 
 use App\Core\Request;
 use App\Services\BillingService;
+use App\Services\WhatsAppService;
 
 final class InvoiceApiController extends ApiBaseController
 {
     private BillingService $billingService;
+    private WhatsAppService $whatsAppService;
 
     public function __construct()
     {
         parent::__construct();
         $this->billingService = new BillingService();
+        $this->whatsAppService = new WhatsAppService($this->db);
     }
 
     public function index(Request $request): void
@@ -174,46 +177,86 @@ final class InvoiceApiController extends ApiBaseController
         $tenantId = $this->tenantId();
         $id = (int)($params['id'] ?? 0);
 
+        $payload = $this->whatsAppService->getInvoiceSharePayload($tenantId, $id);
+        if (!$payload) {
+            $this->jsonError('Invoice not found.', 404, 'NOT_FOUND');
+        }
+
+        $this->jsonSuccess($payload);
+    }
+
+    public function queueWhatsApp(Request $request): void
+    {
+        $tenantId = $this->tenantId();
+        $invoiceIds = $request->post('invoice_ids');
+
+        if (empty($invoiceIds) || !is_array($invoiceIds)) {
+            // Also check raw json
+            $json = $request->json();
+            $invoiceIds = $json['invoice_ids'] ?? [];
+        }
+
+        if (empty($invoiceIds) || !is_array($invoiceIds)) {
+            $this->jsonError('No invoices selected.', 422, 'VALIDATION_FAILED');
+        }
+
+        $cleanedIds = array_map('intval', $invoiceIds);
+        $result = $this->whatsAppService->enqueueInvoices($tenantId, $cleanedIds);
+
+        $this->jsonSuccess($result, "Successfully enqueued {$result['enqueued_count']} invoices for WhatsApp delivery.");
+    }
+
+    public function queueStats(Request $request): void
+    {
+        $tenantId = $this->tenantId();
+        $stats = $this->whatsAppService->getQueueStats($tenantId);
+        $this->jsonSuccess($stats);
+    }
+
+    public function retryWhatsApp(Request $request, array $params): void
+    {
+        $tenantId = $this->tenantId();
+        $id = (int)($params['id'] ?? 0);
+
+        $success = $this->whatsAppService->retryMessage($id, $tenantId);
+        if ($success) {
+            $this->jsonSuccess(null, 'Message re-queued for delivery.');
+        } else {
+            $this->jsonError('Message not found or already processed.', 404, 'NOT_FOUND');
+        }
+    }
+
+    public function publicShow(Request $request, array $params): void
+    {
+        $id = (int)($params['id'] ?? 0);
+        $token = (string)$request->get('token', '');
+
         $invoice = $this->db->fetchOne(
-            "SELECT i.*, c.name as customer_name, c.phone as customer_phone
+            "SELECT i.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address, c.route_name
              FROM invoices i
              JOIN customers c ON c.id = i.customer_id
-             WHERE i.id = ? AND i.tenant_id = ?",
-            [$id, $tenantId]
+             WHERE i.id = ?",
+            [$id]
         );
 
         if (!$invoice) {
             $this->jsonError('Invoice not found.', 404, 'NOT_FOUND');
         }
 
-        $settings = $this->db->fetchOne(
-            "SELECT upi_id FROM tenant_settings WHERE tenant_id = ?",
-            [$tenantId]
-        );
-        $tenant = $this->tenant();
-
-        $monthName = date('F Y', mktime(0, 0, 0, (int)$invoice['billing_month'], 10, (int)$invoice['billing_year']));
-        $finalAmt = number_format((float)$invoice['final_amount'], 2);
-
-        $text = "Namaste {$invoice['customer_name']},\n\n";
-        $text .= "Your milk bill for {$monthName} from " . ($tenant['business_name'] ?? 'Dairy') . " is ready.\n";
-        $text .= "• Total Delivered: {$invoice['total_units']} Liters\n";
-        $text .= "• Net Amount Due: ₹{$finalAmt}\n\n";
-
-        if (!empty($settings['upi_id'])) {
-            $text .= "Pay easily via UPI ID: {$settings['upi_id']}\n";
-            $text .= "UPI Payment Link: upi://pay?pa={$settings['upi_id']}&pn=" . urlencode($tenant['business_name'] ?? 'Dairy') . "&am={$finalAmt}&tn=" . urlencode("Milk Bill #{$id}") . "\n\n";
+        if (!WhatsAppService::verifyInvoiceToken((int)$invoice['id'], (int)$invoice['tenant_id'], $token)) {
+            $this->jsonError('Invalid or expired bill token.', 403, 'FORBIDDEN');
         }
 
-        $text .= "Thank you for choosing pure milk daily!";
-
-        $cleanPhone = preg_replace('/[^\d]/', '', (string)$invoice['customer_phone']);
-        $whatsappUrl = "https://api.whatsapp.com/send?phone=91{$cleanPhone}&text=" . urlencode($text);
+        $tenantId = (int)$invoice['tenant_id'];
+        $tenant = $this->db->fetchOne("SELECT * FROM tenants WHERE id = ?", [$tenantId]) ?? [];
+        $settings = $this->db->fetchOne("SELECT * FROM tenant_settings WHERE tenant_id = ?", [$tenantId]) ?? [];
+        $breakdown = !empty($invoice['breakdown_json']) ? json_decode((string)$invoice['breakdown_json'], true) : [];
 
         $this->jsonSuccess([
-            'phone' => $cleanPhone,
-            'message_text' => $text,
-            'whatsapp_url' => $whatsappUrl,
+            'invoice' => $invoice,
+            'tenant' => $tenant,
+            'settings' => $settings,
+            'breakdown' => $breakdown,
         ]);
     }
 }
