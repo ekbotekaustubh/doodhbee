@@ -25,6 +25,12 @@ foreach ($products as $p) {
         $qty = (float)$sub['default_quantity'];
         $rate = (float)($sub['custom_rate'] ?? $p['default_rate']);
         $shift = (string)($sub['shift'] ?? 'both');
+    } elseif ($isEdit && empty($subscriptions)) {
+        if (in_array($p['code'], $currentMilkTypes, true)) {
+            $isActive = true;
+            $qty = (float)($customer['default_quantity'] ?? 1.0);
+            $rate = (float)($customer['rate_per_unit'] ?? $p['default_rate']);
+        }
     } elseif (!$isEdit) {
         if ($p['code'] === 'cow') {
             $isActive = true;
@@ -97,6 +103,7 @@ foreach ($products as $p) {
                       return Object.values(this.products).filter(p => p.is_active).length;
                   }
               }" 
+              @submit="if (activeCount() === 0) { alert('Please select at least one milk product subscription (e.g. Cow Milk or Buffalo Milk).'); $event.preventDefault(); }"
               class="space-y-6">
             <?= \App\Core\Auth::csrfField() ?>
 
@@ -192,7 +199,8 @@ foreach ($products as $p) {
                                            max="100" 
                                            :name="'subscriptions[' + <?= $pId ?> + '][quantity]'" 
                                            x-model="products[<?= $pId ?>].quantity" 
-                                           required 
+                                           :required="products[<?= $pId ?>].is_active" 
+                                           :disabled="!products[<?= $pId ?>].is_active" 
                                            class="w-full text-sm font-black px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white">
                                 </div>
 
@@ -206,6 +214,7 @@ foreach ($products as $p) {
                                            max="1000" 
                                            :name="'subscriptions[' + <?= $pId ?> + '][custom_rate]'" 
                                            x-model="products[<?= $pId ?>].custom_rate" 
+                                           :disabled="!products[<?= $pId ?>].is_active" 
                                            class="w-full text-sm font-black px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white">
                                 </div>
 
@@ -215,6 +224,7 @@ foreach ($products as $p) {
                                     </label>
                                     <select :name="'subscriptions[' + <?= $pId ?> + '][shift]'" 
                                             x-model="products[<?= $pId ?>].shift" 
+                                            :disabled="!products[<?= $pId ?>].is_active" 
                                             class="w-full text-xs font-bold px-3 py-2 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500">
                                         <option value="both">Both Shifts (Morning & Evening)</option>
                                         <option value="morning">Morning Shift Only</option>

@@ -156,7 +156,7 @@ final class ProductService
             $qty = (float)($sub['quantity'] ?? $sub['default_quantity'] ?? 0.0);
             $rate = isset($sub['custom_rate']) && $sub['custom_rate'] !== '' && (float)$sub['custom_rate'] > 0 ? (float)$sub['custom_rate'] : null;
             $shift = (string)($sub['shift'] ?? 'both');
-            $isActive = !empty($sub['is_active']);
+            $isActive = !isset($sub['is_active']) || !empty($sub['is_active']);
 
             if ($productId <= 0 || $qty <= 0 || !$isActive) {
                 continue;

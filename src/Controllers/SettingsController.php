@@ -179,15 +179,19 @@ final class SettingsController
         }
 
         // Update taxes & UPI via REST API
-        $res = ApiClient::put('/api/settings/taxes', [
+        $payload = [
             'tax_enabled' => $taxEnabled,
             'tax_label' => empty($taxLabel) ? 'GST' : $taxLabel,
             'tax_percentage' => $taxPercentage,
             'tax_number' => $taxNumber,
             'upi_id' => $upiId,
             'invoice_footer_note' => $footerNote,
-            'upi_qr_path' => $qrPath,
-        ]);
+        ];
+        if ($qrPath !== null) {
+            $payload['upi_qr_path'] = $qrPath;
+        }
+
+        $res = ApiClient::put('/api/settings/taxes', $payload);
 
         if ($res['success']) {
             Auth::flash('success', 'Tax, branding and UPI settings saved.');

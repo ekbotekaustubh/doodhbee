@@ -93,7 +93,8 @@ final class CustomerController
         $subsList = [];
         if (is_array($rawSubs)) {
             foreach ($rawSubs as $pId => $subData) {
-                if (is_array($subData) && !empty($subData['active'])) {
+                $isActive = is_array($subData) && (!empty($subData['is_active']) || !empty($subData['active']));
+                if ($isActive) {
                     $qty = (float)($subData['quantity'] ?? 0.0);
                     $rate = isset($subData['custom_rate']) && $subData['custom_rate'] !== '' ? (float)$subData['custom_rate'] : null;
                     $shift = (string)($subData['shift'] ?? 'both');
@@ -103,6 +104,7 @@ final class CustomerController
                             'quantity' => $qty,
                             'custom_rate' => $rate,
                             'shift' => $shift,
+                            'is_active' => true,
                         ];
                     }
                 }
@@ -188,7 +190,8 @@ final class CustomerController
         $subsList = [];
         if (is_array($rawSubs)) {
             foreach ($rawSubs as $pId => $subData) {
-                if (is_array($subData) && !empty($subData['active'])) {
+                $isActive = is_array($subData) && (!empty($subData['is_active']) || !empty($subData['active']));
+                if ($isActive) {
                     $qty = (float)($subData['quantity'] ?? 0.0);
                     $rate = isset($subData['custom_rate']) && $subData['custom_rate'] !== '' ? (float)$subData['custom_rate'] : null;
                     $shift = (string)($subData['shift'] ?? 'both');
@@ -198,10 +201,17 @@ final class CustomerController
                             'quantity' => $qty,
                             'custom_rate' => $rate,
                             'shift' => $shift,
+                            'is_active' => true,
                         ];
                     }
                 }
             }
+        }
+
+        if (empty($subsList)) {
+            Auth::flash('error', 'Please select at least one milk product subscription (e.g. Cow Milk or Buffalo Milk).');
+            Response::redirect(url("/customers/{$id}/edit"));
+            return;
         }
 
         // 1. Update customer via REST API

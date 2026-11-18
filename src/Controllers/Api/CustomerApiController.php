@@ -123,6 +123,10 @@ final class CustomerApiController extends ApiBaseController
             [$tenantId, $id]
         );
 
+        if (empty($subscriptions)) {
+            $subscriptions = $this->productService->getCustomerSubscriptions($tenantId, $id);
+        }
+
         $leaves = $this->db->fetchAll(
             "SELECT * FROM customer_leaves WHERE tenant_id = ? AND customer_id = ? ORDER BY start_date DESC",
             [$tenantId, $id]

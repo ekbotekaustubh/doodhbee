@@ -82,11 +82,49 @@ final class SettingsApiController extends ApiBaseController
             $this->jsonError('Tax percentage must be between 0 and 100.', 422, 'VALIDATION_ERROR');
         }
 
+        $exists = $this->db->fetchOne("SELECT id FROM tenant_settings WHERE tenant_id = ?", [$tenantId]);
+        if (!$exists) {
+            $this->db->execute(
+                "INSERT INTO tenant_settings (tenant_id, tax_enabled, tax_label, tax_percentage) VALUES (?, 0, 'GST', 5.00)",
+                [$tenantId]
+            );
+        }
+
+        $fields = [
+            'tax_enabled = ?',
+            'tax_label = ?',
+            'tax_percentage = ?',
+            'tax_number = ?',
+        ];
+        $params = [
+            $taxEnabled,
+            empty($taxLabel) ? 'GST' : $taxLabel,
+            $taxPercentage,
+            empty($taxNumber) ? null : $taxNumber,
+        ];
+
+        if ($request->has('upi_id')) {
+            $upiId = trim((string)$request->input('upi_id', ''));
+            $fields[] = 'upi_id = ?';
+            $params[] = empty($upiId) ? null : $upiId;
+        }
+
+        if ($request->has('upi_qr_path') && $request->input('upi_qr_path') !== null) {
+            $qrPath = trim((string)$request->input('upi_qr_path', ''));
+            $fields[] = 'upi_qr_path = ?';
+            $params[] = empty($qrPath) ? null : $qrPath;
+        }
+
+        if ($request->has('invoice_footer_note')) {
+            $footerNote = trim((string)$request->input('invoice_footer_note', ''));
+            $fields[] = 'invoice_footer_note = ?';
+            $params[] = empty($footerNote) ? null : $footerNote;
+        }
+
+        $params[] = $tenantId;
         $this->db->execute(
-            "UPDATE tenant_settings 
-             SET tax_enabled = ?, tax_label = ?, tax_percentage = ?, tax_number = ?
-             WHERE tenant_id = ?",
-            [$taxEnabled, empty($taxLabel) ? 'GST' : $taxLabel, $taxPercentage, empty($taxNumber) ? null : $taxNumber, $tenantId]
+            "UPDATE tenant_settings SET " . implode(', ', $fields) . " WHERE tenant_id = ?",
+            $params
         );
 
         $this->jsonSuccess([
@@ -94,17 +132,36 @@ final class SettingsApiController extends ApiBaseController
             'tax_label' => $taxLabel,
             'tax_percentage' => $taxPercentage,
             'tax_number' => $taxNumber,
-        ], 'Tax settings updated successfully');
+            'upi_id' => $request->has('upi_id') ? trim((string)$request->input('upi_id', '')) : null,
+            'invoice_footer_note' => $request->has('invoice_footer_note') ? trim((string)$request->input('invoice_footer_note', '')) : null,
+        ], 'Tax and UPI settings updated successfully');
     }
 
     public function updateUpi(Request $request): void
     {
         $tenantId = $this->tenantId();
         $upiId = trim((string)$request->input('upi_id', ''));
+        $qrPath = $request->input('upi_qr_path', null);
+
+        $exists = $this->db->fetchOne("SELECT id FROM tenant_settings WHERE tenant_id = ?", [$tenantId]);
+        if (!$exists) {
+            $this->db->execute(
+                "INSERT INTO tenant_settings (tenant_id, tax_enabled, tax_label, tax_percentage) VALUES (?, 0, 'GST', 5.00)",
+                [$tenantId]
+            );
+        }
+
+        $fields = ['upi_id = ?'];
+        $params = [empty($upiId) ? null : $upiId];
+        if ($qrPath !== null) {
+            $fields[] = 'upi_qr_path = ?';
+            $params[] = empty($qrPath) ? null : $qrPath;
+        }
+        $params[] = $tenantId;
 
         $this->db->execute(
-            "UPDATE tenant_settings SET upi_id = ? WHERE tenant_id = ?",
-            [empty($upiId) ? null : $upiId, $tenantId]
+            "UPDATE tenant_settings SET " . implode(', ', $fields) . " WHERE tenant_id = ?",
+            $params
         );
 
         $this->jsonSuccess(['upi_id' => $upiId], 'UPI ID updated successfully');
