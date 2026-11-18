@@ -156,7 +156,7 @@ final class AuthController
             Response::redirect(url('/'));
         } elseif ($role === 'tenant2') {
             $res = ApiClient::post('/api/auth/login', [
-                'login' => '9822000002',
+                'login' => '9876500000',
                 'password' => 'password123',
                 'device_name' => 'Demo Switcher',
             ]);

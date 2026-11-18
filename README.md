@@ -75,10 +75,27 @@ Access the application in your browser at:
 
 ---
 
-## 4. Running the Automated Test Suite
+## 4. Running Automated Tests & Code Coverage
 
-To verify data isolation, the zero-charge rule, quota guards, and the 4-step billing formula:
-
+### Run Core Unit & Domain Test Suite
 ```bash
 /usr/bin/php8.4 /var/www/html/doodhbee/tests/test_suite.php
 ```
+
+### Run All Test Suites
+```bash
+/usr/bin/php8.4 /var/www/html/doodhbee/tests/api_test_suite.php
+/usr/bin/php8.4 /var/www/html/doodhbee/tests/web_to_api_integration_test.php
+/usr/bin/php8.4 /var/www/html/doodhbee/tests/whatsapp_test_suite.php
+```
+
+### Run Code Coverage Analysis
+Generate comprehensive CLI & HTML code coverage reports:
+```bash
+# Full suite coverage (Unit + API + Web + WhatsApp)
+/usr/bin/php8.4 /var/www/html/doodhbee/scripts/coverage.php
+
+# Unit tests only
+/usr/bin/php8.4 /var/www/html/doodhbee/scripts/coverage.php --suite=unit
+```
+An interactive HTML report is generated at `coverage/index.html`.

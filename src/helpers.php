@@ -20,9 +20,9 @@ function e(?string $value): string
     return htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
-function formatMoney(float|int|string|null $amount = 0, string $symbol = '₹'): string
+function formatMoney(float|int|string|null $amount = 0, ?string $symbol = '₹'): string
 {
-    return $symbol . number_format((float)($amount ?? 0), 2);
+    return ($symbol ?? '₹') . number_format((float)($amount ?? 0), 2);
 }
 
 function formatDate(?string $date, string $format = 'd M Y'): string
@@ -30,7 +30,11 @@ function formatDate(?string $date, string $format = 'd M Y'): string
     if (empty($date)) {
         return '-';
     }
-    return (new \DateTime($date))->format($format);
+    try {
+        return (new \DateTime($date))->format($format);
+    } catch (\Throwable) {
+        return '-';
+    }
 }
 
 function url(string $path = '/'): string

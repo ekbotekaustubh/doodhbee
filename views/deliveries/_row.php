@@ -7,6 +7,10 @@ $status = $item['status'] ?? 'pending';
 $isOnLeave = !empty($item['is_on_leave']);
 $quantity = (float)($item['quantity'] ?? 0.0);
 $customerId = (int)$item['customer_id'];
+$defaultQty = (float)(!empty($item['products']) ? array_sum(array_column($item['products'], 'quantity')) : ($item['default_quantity'] ?? 1.0));
+if ($defaultQty <= 0) {
+    $defaultQty = 1.0;
+}
 ?>
 <div id="delivery-row-<?= $customerId ?>" class="p-4 bg-white hover:bg-slate-50 transition border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4 <?= $isOnLeave ? 'bg-slate-50/80 opacity-90' : '' ?>">
     <!-- Customer Info & Notes -->

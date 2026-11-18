@@ -57,7 +57,7 @@ foreach ($products as $p) {
             ← Back to Customer Directory
         </a>
         <span class="text-xs font-bold text-slate-500">
-            Quota Slots Remaining: <strong class="text-blue-600"><?= $quota['remaining_slots'] ?></strong>
+            Quota Slots Remaining: <strong class="text-blue-600"><?= $quota['remaining_slots'] ?? 'N/A' ?></strong>
         </span>
     </div>
 

@@ -197,8 +197,10 @@ runTest("Billing Engine 4-Step Invoice Calculation Formula", function() use ($bi
 
     $bill = $billingService->calculateCustomerBill(1, 1, $py, $pm);
 
-    // Formula Step 1: Base Milk Subtotal = sum(Delivered Liters * Customer Rate)
-    $expectedSubtotal = round($bill['total_units'] * $bill['customer_rate'], 2);
+    // Formula Step 1: Base Milk Subtotal = sum(Product Subtotals) or (Delivered Liters * Customer Rate)
+    $expectedSubtotal = !empty($bill['products'])
+        ? round((float)array_sum(array_column($bill['products'], 'subtotal')), 2)
+        : round($bill['total_units'] * $bill['customer_rate'], 2);
     if (abs($bill['milk_subtotal'] - $expectedSubtotal) > 0.01) {
         throw new \Exception("Step 1 failed! Milk subtotal mismatch");
     }

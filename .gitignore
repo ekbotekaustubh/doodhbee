@@ -13,3 +13,6 @@ composer.phar
 !/storage/backups/.gitkeep
 /storage/cache/*
 !/storage/cache/.gitkeep
+/scripts/ext/
+/coverage/
+*.so
