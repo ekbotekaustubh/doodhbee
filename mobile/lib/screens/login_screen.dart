@@ -263,7 +263,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   controller: _serverUrlController,
                   decoration: InputDecoration(
                     labelText: 'API Gateway URL',
-                    hintText: 'http://192.168.1.5/doodhbee/index.php/api',
+                    hintText: 'https://www.doodhbee.com/api',
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   ),

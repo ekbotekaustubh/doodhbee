@@ -4,6 +4,8 @@ import '../core/constants/api_constants.dart';
 import '../models/customer.dart';
 import 'customer_form_screen.dart';
 import 'customer_leave_screen.dart';
+import 'customer_ledger_screen.dart';
+import 'subscription_screen.dart';
 
 class CustomerListScreen extends StatefulWidget {
   const CustomerListScreen({super.key});
@@ -70,18 +72,36 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
         children: [
           // Quota Usage Banner
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             color: const Color(0xFFEFF6FF),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Plan Quota: $activeCount / $maxAllowed Customers',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1E40AF)),
+                Expanded(
+                  child: Text(
+                    'Plan Quota: $activeCount / $maxAllowed Customers (${maxAllowed - activeCount} free slots)',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF1E40AF)),
+                  ),
                 ),
-                Text(
-                  '${maxAllowed - activeCount} free slots',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF2563EB)),
+                InkWell(
+                  onTap: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const SubscriptionScreen()),
+                    );
+                    _loadCustomers();
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0284C7),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text(
+                      'Upgrade ⚡',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -151,10 +171,16 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                                         context,
                                         MaterialPageRoute(builder: (_) => CustomerLeaveScreen(customerId: c.id, customerName: c.name)),
                                       );
+                                    } else if (val == 'ledger') {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(builder: (_) => CustomerLedgerScreen(customerId: c.id, customerName: c.name)),
+                                      );
                                     }
                                   },
                                   itemBuilder: (_) => [
                                     const PopupMenuItem(value: 'edit', child: Text('✏️ Edit Profile')),
+                                    const PopupMenuItem(value: 'ledger', child: Text('📜 Customer Ledger')),
                                     const PopupMenuItem(value: 'vacation', child: Text('🏖 Vacation / Pause')),
                                   ],
                                 ),

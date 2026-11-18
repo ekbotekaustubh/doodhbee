@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import '../core/api/api_client.dart';
 import '../core/api/auth_service.dart';
 import '../core/constants/api_constants.dart';
+import 'charges_screen.dart';
 import 'login_screen.dart';
+import 'product_list_screen.dart';
+import 'settings_screen.dart';
+import 'subscription_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -166,9 +170,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         borderRadius: BorderRadius.circular(4),
                       ),
                       const SizedBox(height: 8),
-                      Text(
-                        'Tier: ${_quota?['payment_status'] == 'active' ? 'Paid Extended Tier' : 'Free 5-Customer Tier'}',
-                        style: const TextStyle(fontSize: 11, color: Color(0xFF1E40AF)),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Tier: ${_quota?['payment_status'] == 'active' ? 'Paid Extended Tier' : 'Free 5-Customer Tier'}',
+                            style: const TextStyle(fontSize: 11, color: Color(0xFF1E40AF)),
+                          ),
+                          InkWell(
+                            onTap: () async {
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const SubscriptionScreen()),
+                              );
+                              _loadDashboard();
+                            },
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+                              child: Text(
+                                'Upgrade Plan ⚡',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF1E40AF),
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -251,6 +281,143 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ],
                   ),
                 ),
+              ),
+              const SizedBox(height: 20),
+
+              // Dairy Administration & Catalog Hub
+              const Text('Dairy Administration & Operations:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              const SizedBox(height: 10),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: Card(
+                      child: InkWell(
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const ProductListScreen()),
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        child: const Padding(
+                          padding: EdgeInsets.all(14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              CircleAvatar(
+                                backgroundColor: Color(0xFFE0F2FE),
+                                foregroundColor: Color(0xFF0284C7),
+                                radius: 18,
+                                child: Icon(Icons.inventory_2_outlined, size: 20),
+                              ),
+                              SizedBox(height: 10),
+                              Text('Products Catalog', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                              SizedBox(height: 2),
+                              Text('Rates & milk types', style: TextStyle(fontSize: 11, color: Colors.black54)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Card(
+                      child: InkWell(
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const ChargesScreen()),
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        child: const Padding(
+                          padding: EdgeInsets.all(14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              CircleAvatar(
+                                backgroundColor: Color(0xFFFEF3C7),
+                                foregroundColor: Color(0xFFD97706),
+                                radius: 18,
+                                child: Icon(Icons.local_offer_outlined, size: 20),
+                              ),
+                              SizedBox(height: 10),
+                              Text('Surcharges & Fees', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                              SizedBox(height: 2),
+                              Text('Delivery & bottles', style: TextStyle(fontSize: 11, color: Colors.black54)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: Card(
+                      child: InkWell(
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        child: const Padding(
+                          padding: EdgeInsets.all(14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              CircleAvatar(
+                                backgroundColor: Color(0xFFF1F5F9),
+                                foregroundColor: Color(0xFF475569),
+                                radius: 18,
+                                child: Icon(Icons.storefront_outlined, size: 20),
+                              ),
+                              SizedBox(height: 10),
+                              Text('Dairy & Tax Settings', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                              SizedBox(height: 2),
+                              Text('GST & UPI payments', style: TextStyle(fontSize: 11, color: Colors.black54)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Card(
+                      child: InkWell(
+                        onTap: () async {
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const SubscriptionScreen()),
+                          );
+                          _loadDashboard();
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: const Padding(
+                          padding: EdgeInsets.all(14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              CircleAvatar(
+                                backgroundColor: Color(0xFFDCFCE7),
+                                foregroundColor: Color(0xFF15803D),
+                                radius: 18,
+                                child: Icon(Icons.flash_on, size: 20),
+                              ),
+                              SizedBox(height: 10),
+                              Text('Plan & Quota', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                              SizedBox(height: 2),
+                              Text('Upgrade capacity', style: TextStyle(fontSize: 11, color: Colors.black54)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 24),
 

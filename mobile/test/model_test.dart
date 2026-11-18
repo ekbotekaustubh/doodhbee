@@ -2,6 +2,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:doodhbee_mobile/models/delivery_item.dart';
 import 'package:doodhbee_mobile/models/customer.dart';
 import 'package:doodhbee_mobile/models/invoice.dart';
+import 'package:doodhbee_mobile/models/product.dart';
+import 'package:doodhbee_mobile/models/additional_charge.dart';
+import 'package:doodhbee_mobile/models/ledger_entry.dart';
+import 'package:doodhbee_mobile/core/constants/api_constants.dart';
 import 'package:doodhbee_mobile/core/theme/app_theme.dart';
 
 void main() {
@@ -132,6 +136,78 @@ void main() {
       final theme = AppTheme.lightTheme;
       expect(theme.useMaterial3, true);
       expect(theme.colorScheme.primary, AppTheme.primaryBlue);
+    });
+  });
+
+  group('Product Model Tests', () {
+    test('Deserializes and serializes Product correctly', () {
+      final json = {
+        'id': 5,
+        'name': 'Paneer',
+        'code': 'paneer',
+        'unit': 'kg',
+        'default_rate': 340.0,
+        'sort_order': 3,
+        'is_active': 1,
+      };
+
+      final product = Product.fromJson(json);
+      expect(product.id, 5);
+      expect(product.name, 'Paneer');
+      expect(product.unit, 'kg');
+      expect(product.defaultRate, 340.0);
+      expect(product.isActive, true);
+
+      final map = product.toJson();
+      expect(map['code'], 'paneer');
+      expect(map['is_active'], 1);
+    });
+  });
+
+  group('AdditionalCharge Model Tests', () {
+    test('Deserializes and formats charge types correctly', () {
+      final json = {
+        'id': 2,
+        'charge_name': 'Monthly Delivery Fee',
+        'charge_type': 'flat_monthly',
+        'amount': 50.0,
+        'is_taxable': 1,
+        'is_active': 1,
+      };
+
+      final charge = AdditionalCharge.fromJson(json);
+      expect(charge.id, 2);
+      expect(charge.chargeName, 'Monthly Delivery Fee');
+      expect(charge.amount, 50.0);
+      expect(charge.isTaxable, true);
+      expect(charge.formattedChargeType, 'Flat Monthly');
+    });
+  });
+
+  group('LedgerEntry Model Tests', () {
+    test('Deserializes invoice and payment entries with running balance', () {
+      final invoiceJson = {
+        'id': 10,
+        'type': 'invoice',
+        'date': '2026-11-01',
+        'description': 'Milk Invoice for October 2026',
+        'debit': 1800.0,
+        'credit': 0.0,
+        'status': 'unpaid',
+        'balance_after': 1800.0,
+      };
+
+      final entry = LedgerEntry.fromJson(invoiceJson);
+      expect(entry.isInvoice, true);
+      expect(entry.isPayment, false);
+      expect(entry.debit, 1800.0);
+      expect(entry.balanceAfter, 1800.0);
+    });
+  });
+
+  group('ApiConstants Configuration Tests', () {
+    test('Production defaultBaseUrl matches https://www.doodhbee.com/api', () {
+      expect(ApiConstants.defaultBaseUrl, 'https://www.doodhbee.com/api');
     });
   });
 }

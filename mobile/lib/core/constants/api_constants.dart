@@ -1,14 +1,7 @@
-import 'dart:io';
-
 class ApiConstants {
-  // Default development endpoints:
-  // - Android Emulator uses 10.0.2.2 to reach host machine
-  // - iOS Simulator uses localhost
+  // Production endpoint for mobile app: https://www.doodhbee.com/api
   static String get defaultBaseUrl {
-    if (Platform.isAndroid) {
-      return 'http://10.0.2.2/doodhbee/index.php/api';
-    }
-    return 'http://localhost/doodhbee/index.php/api';
+    return 'https://www.doodhbee.com/api';
   }
 
   // Endpoints

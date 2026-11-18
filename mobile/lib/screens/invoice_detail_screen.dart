@@ -3,6 +3,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/api/api_client.dart';
 import '../core/constants/api_constants.dart';
+import 'thermal_receipt_screen.dart';
 
 class InvoiceDetailScreen extends StatefulWidget {
   final int invoiceId;
@@ -184,6 +185,16 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
         title: Text('Invoice #${widget.invoiceId}'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.receipt_outlined),
+            tooltip: 'Thermal Receipt Slip',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => ThermalReceiptScreen(invoiceId: widget.invoiceId)),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.qr_code),
             tooltip: 'Show UPI QR Code',
             onPressed: _showUpiQrDialog,
@@ -283,6 +294,17 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
               icon: const Icon(Icons.payment, size: 18),
               label: const Text('Collect Doorstep Payment'),
               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF16A34A)),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => ThermalReceiptScreen(invoiceId: widget.invoiceId)),
+                );
+              },
+              icon: const Icon(Icons.receipt_long, size: 18),
+              label: const Text('View Thermal Receipt Slip (POS)'),
             ),
             const SizedBox(height: 24),
 
