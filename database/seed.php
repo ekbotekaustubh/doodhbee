@@ -7,6 +7,7 @@ require_once __DIR__ . '/../src/helpers.php';
 $pdo = getDbConnection();
 
 echo "Seeding DoodhBee Database...\n";
+$pdo->exec("SET FOREIGN_KEY_CHECKS = 0;");
 
 // 1. System Settings
 $settings = [
@@ -91,16 +92,33 @@ $prodStmt->execute([3, 1, 'Fresh Paneer', 'paneer', 'kg', 360.00, 1, 3]);
 $prodStmt->execute([101, 2, 'Cow Milk', 'cow', 'L', 60.00, 1, 1]);
 $prodStmt->execute([102, 2, 'Buffalo Milk', 'buffalo', 'L', 68.00, 1, 2]);
 
+// 4b. Routes for Tenants
+$pdo->prepare("DELETE FROM routes WHERE tenant_id IN (1, 2)")->execute();
+$routeStmt = $pdo->prepare("INSERT INTO routes (tenant_id, name, description, is_active, sort_order) VALUES (?, ?, ?, 1, ?)");
+$routeStmt->execute([1, 'Main Route', 'Primary town center delivery route', 1]);
+$routeT1Main = (int)$pdo->lastInsertId();
+$routeStmt->execute([1, 'Green Valley Route', 'Green Valley societies and residences', 2]);
+$routeT1Green = (int)$pdo->lastInsertId();
+$routeStmt->execute([1, 'North City Route', 'North City apartments and villas', 3]);
+$routeT1North = (int)$pdo->lastInsertId();
+
+$routeStmt->execute([2, 'Main Route', 'Central distribution run', 1]);
+$routeT2Main = (int)$pdo->lastInsertId();
+$routeStmt->execute([2, 'Sector 1', 'Sector 1 apartment blocks', 2]);
+$routeT2Sec1 = (int)$pdo->lastInsertId();
+$routeStmt->execute([2, 'Sector 2', 'Sector 2 independent houses', 3]);
+$routeT2Sec2 = (int)$pdo->lastInsertId();
+
 // 5. Customers for Tenant 1
 $pdo->prepare("DELETE FROM customers WHERE tenant_id = 1")->execute();
-$custStmt = $pdo->prepare("INSERT INTO customers (id, tenant_id, name, phone, address, route_name, milk_types, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+$custStmt = $pdo->prepare("INSERT INTO customers (id, tenant_id, name, phone, address, route_id, milk_types, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
 $customers = [
-    [1, 1, 'Aarav Sharma', '9822011111', 'Flat 101, Gokul Heights, Station Road', 'Green Valley Route', 'cow', 'active'],
-    [2, 1, 'Priya Verma', '9822022222', 'B-204, Sunrise Residency, Near Temple', 'Green Valley Route', 'buffalo', 'active'],
-    [3, 1, 'Rajesh Gupta', '9822033333', 'House #14, Civil Lines, Main Market', 'North City Route', 'cow,buffalo', 'active'],
-    [4, 1, 'Sneha Kulkarni', '9822044444', 'Flat 302, Palm Grove Society', 'Green Valley Route', 'cow', 'active'],
-    [5, 1, 'Vikram Singh', '9822055555', 'Villa 5, Lakeview Society, Ring Road', 'North City Route', 'buffalo', 'active'],
-    [6, 1, 'Ananya Deshmukh', '9822066666', 'Flat 405, Lotus Residency', 'North City Route', 'cow,buffalo', 'active'],
+    [1, 1, 'Aarav Sharma', '9822011111', 'Flat 101, Gokul Heights, Station Road', $routeT1Green, 'cow', 'active'],
+    [2, 1, 'Priya Verma', '9822022222', 'B-204, Sunrise Residency, Near Temple', $routeT1Green, 'buffalo', 'active'],
+    [3, 1, 'Rajesh Gupta', '9822033333', 'House #14, Civil Lines, Main Market', $routeT1North, 'cow,buffalo', 'active'],
+    [4, 1, 'Sneha Kulkarni', '9822044444', 'Flat 302, Palm Grove Society', $routeT1Green, 'cow', 'active'],
+    [5, 1, 'Vikram Singh', '9822055555', 'Villa 5, Lakeview Society, Ring Road', $routeT1North, 'buffalo', 'active'],
+    [6, 1, 'Ananya Deshmukh', '9822066666', 'Flat 405, Lotus Residency', $routeT1North, 'cow,buffalo', 'active'],
 ];
 foreach ($customers as $c) {
     $custStmt->execute($c);
@@ -126,10 +144,10 @@ $subStmt->execute([1, 6, 2, 1.00, 70.00, 'both', 1]);
 // 4 Customers for Tenant 2 (Free tier)
 $pdo->prepare("DELETE FROM customers WHERE tenant_id = 2")->execute();
 $tenant2Cust = [
-    [101, 2, 'Kavita Joshi', '9911011111', 'A-12 Shiv Krupa', 'Sector 1', 'cow', 'active'],
-    [102, 2, 'Manoj Patil', '9911022222', 'B-04 Golden Nest', 'Sector 1', 'cow,buffalo', 'active'],
-    [103, 2, 'Dinesh Rao', '9911033333', 'C-31 Shanti Niketan', 'Sector 2', 'buffalo', 'active'],
-    [104, 2, 'Neha Agarwal', '9911044444', 'D-15 Park View', 'Sector 2', 'cow', 'active'],
+    [101, 2, 'Kavita Joshi', '9911011111', 'A-12 Shiv Krupa', $routeT2Sec1, 'cow', 'active'],
+    [102, 2, 'Manoj Patil', '9911022222', 'B-04 Golden Nest', $routeT2Sec1, 'cow,buffalo', 'active'],
+    [103, 2, 'Dinesh Rao', '9911033333', 'C-31 Shanti Niketan', $routeT2Sec2, 'buffalo', 'active'],
+    [104, 2, 'Neha Agarwal', '9911044444', 'D-15 Park View', $routeT2Sec2, 'cow', 'active'],
 ];
 foreach ($tenant2Cust as $c) {
     $custStmt->execute($c);
@@ -362,7 +380,17 @@ foreach ($customers as $c) {
     }
 }
 
+// Seed Staff / Delivery Riders
+$pdo->prepare("DELETE FROM tenant_users WHERE tenant_id IN (1, 2)")->execute();
+$staffStmt = $pdo->prepare("INSERT INTO tenant_users (tenant_id, role, assigned_route_id, name, phone, email, password_hash, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, 1)");
+$staffStmt->execute([1, 'delivery', $routeT1Green, 'Raju Rider (Green Valley)', '9876500001', 'raju@krishnadairy.com', password_hash('rider123', PASSWORD_BCRYPT)]);
+$staffStmt->execute([1, 'delivery', $routeT1North, 'Amit Rider (North City)', '9876500002', 'amit@krishnadairy.com', password_hash('rider123', PASSWORD_BCRYPT)]);
+$staffStmt->execute([2, 'delivery', $routeT2Sec1, 'Sonu Rider (Sector 1)', '9876500003', 'sonu@radhadairy.com', password_hash('rider123', PASSWORD_BCRYPT)]);
+
+$pdo->exec("SET FOREIGN_KEY_CHECKS = 1;");
 echo "Database seeded successfully!\n";
 echo "Super Admin: admin@doodhbee.com / admin123\n";
 echo "Tenant 1 (Krishna Pure Milk Dairy): ramesh@krishnadairy.com / password123 (Active Paid Quota: 105)\n";
 echo "Tenant 2 (Radha Fresh Cow Dairy): suresh@radhadairy.com / password123 (Free Tier Quota: 5)\n";
+echo "Delivery Rider (Tenant 1, Green Valley): 9876500001 / rider123\n";
+echo "Delivery Rider (Tenant 1, North City): 9876500002 / rider123\n";

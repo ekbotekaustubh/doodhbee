@@ -146,13 +146,13 @@ class SyncEngine {
   }
 
   /// 3. Refresh today's run-sheet from cloud and cache in local SQLite
-  Future<List<Map<String, dynamic>>> syncDeliveries(String date, String shift, {String? route}) async {
+  Future<List<Map<String, dynamic>>> syncDeliveries(String date, String shift, {String? route, String? search}) async {
     // If online, fetch fresh run-sheet and upsert into SQLite
     if (_isOnline) {
       final res = await _api.get(ApiConstants.deliveries, queryParameters: {
         'date': date,
         'shift': shift,
-        'route': route,
+        if (route != null && route.isNotEmpty) 'route': route,
       });
 
       if (res.success && res.data != null) {
@@ -161,7 +161,7 @@ class SyncEngine {
       }
     }
 
-    // Always return from local SQLite (works whether online or offline)
-    return await _db.getLocalDeliveries(date, shift, route: route);
+    // Always return from local SQLite with route and search filters (works whether online or offline)
+    return await _db.getLocalDeliveries(date, shift, route: route, search: search);
   }
 }

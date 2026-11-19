@@ -321,4 +321,215 @@
             <?php endif; ?>
         </div>
     </div>
+
+    <!-- Section 4: Delivery Routes & Distribution Zones -->
+    <div class="bg-white rounded-3xl border border-slate-200 p-6 md:p-8 shadow-sm">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div>
+                <h2 class="text-lg font-black text-slate-900 mb-1 flex items-center gap-2">
+                    <span>🗺️ Delivery Routes & Distribution Zones</span>
+                </h2>
+                <p class="text-xs text-slate-500">
+                    Group your customers into territorial routes for organized run-sheets and field milk drops.
+                </p>
+            </div>
+        </div>
+
+        <!-- Add Route Form -->
+        <form method="POST" action="<?= url('/settings/routes') ?>" class="p-4 bg-slate-50 rounded-2xl border border-slate-200 mb-6">
+            <?= \App\Core\Auth::csrfField() ?>
+            <div class="text-xs font-black text-slate-700 uppercase tracking-wider mb-3">Add New Delivery Route</div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div class="sm:col-span-1">
+                    <input type="text" name="name" required placeholder="Route Name (e.g. Sector 4, North Zone)" class="w-full text-xs font-bold px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="sm:col-span-1">
+                    <input type="text" name="description" placeholder="Description / Landmark (Optional)" class="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="sm:col-span-1">
+                    <button type="submit" class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow transition">
+                        + Add Route
+                    </button>
+                </div>
+            </div>
+        </form>
+
+        <!-- Routes List -->
+        <div class="space-y-3">
+            <?php if (empty($routes)): ?>
+                <p class="text-xs text-slate-400 italic text-center py-4">No routes found. The default Main Route will be created automatically.</p>
+            <?php else: ?>
+                <?php foreach ($routes as $rt): ?>
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl border <?= $rt['is_active'] ? 'border-slate-200 bg-white' : 'border-slate-100 bg-slate-50 opacity-75' ?> gap-3">
+                        <div>
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="text-sm font-black text-slate-900"><?= e($rt['name']) ?></span>
+                                <?php if (!empty($rt['is_default']) || $rt['name'] === 'Main Route'): ?>
+                                    <span class="text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">
+                                        Default
+                                    </span>
+                                <?php endif; ?>
+                                <?php if (!$rt['is_active']): ?>
+                                    <span class="text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-slate-200 text-slate-600">
+                                        Inactive
+                                    </span>
+                                <?php endif; ?>
+                            </div>
+                            <div class="text-xs text-slate-500 mt-0.5">
+                                <?php if (!empty($rt['description'])): ?>
+                                    <span><?= e($rt['description']) ?> • </span>
+                                <?php endif; ?>
+                                <span class="font-semibold text-slate-700"><?= (int)($rt['customer_count'] ?? 0) ?> customer(s) assigned</span>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-3 self-end sm:self-center">
+                            <form method="POST" action="<?= url("/settings/routes/{$rt['id']}/toggle") ?>">
+                                <?= \App\Core\Auth::csrfField() ?>
+                                <button type="submit" class="px-2.5 py-1.5 rounded-lg text-xs font-bold border <?= $rt['is_active'] ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-emerald-50 text-emerald-800 border-emerald-200' ?>">
+                                    <?= $rt['is_active'] ? 'Deactivate' : 'Activate' ?>
+                                </button>
+                            </form>
+
+                            <?php if (empty($rt['is_default']) && $rt['name'] !== 'Main Route'): ?>
+                                <form method="POST" action="<?= url("/settings/routes/{$rt['id']}/delete") ?>" onsubmit="return confirm('Delete this route?');">
+                                    <?= \App\Core\Auth::csrfField() ?>
+                                    <button type="submit" class="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 text-xs font-bold" title="Delete Route">
+                                        🗑️
+                                    </button>
+                                </form>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <!-- Section 5: Delivery Staff & Route Riders -->
+    <div id="staff-section" class="bg-white rounded-3xl border border-slate-200 p-6 md:p-8 shadow-sm">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
+            <div>
+                <h2 class="text-lg font-black text-slate-900 flex items-center gap-2">
+                    <span>🛵 Delivery Staff & Route Riders</span>
+                </h2>
+                <p class="text-xs text-slate-500">
+                    Create login credentials for your delivery riders. Riders can only access the daily delivery run-sheet and their assigned route on mobile/web.
+                </p>
+            </div>
+        </div>
+
+        <!-- Add Staff Form -->
+        <form method="POST" action="<?= url('/settings/staff') ?>" class="p-4 bg-slate-50 rounded-2xl border border-slate-200 mb-6">
+            <?= \App\Core\Auth::csrfField() ?>
+            <div class="text-xs font-black text-slate-700 uppercase tracking-wider mb-3">Add New Delivery Rider / Staff Member</div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-600 mb-1">Rider Full Name *</label>
+                    <input type="text" name="name" required placeholder="e.g. Raju Rider" class="w-full text-xs font-bold px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-600 mb-1">Phone Number (Login ID) *</label>
+                    <input type="tel" name="phone" required placeholder="10-digit Mobile Number" class="w-full text-xs font-bold px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-600 mb-1">Login Password *</label>
+                    <input type="password" name="password" required placeholder="Minimum 4 characters" class="w-full text-xs font-bold px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-600 mb-1">Assigned Route (Optional)</label>
+                    <select name="assigned_route_id" class="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white">
+                        <option value="">-- All Routes / Unassigned --</option>
+                        <?php foreach ($routes as $rt): ?>
+                            <option value="<?= $rt['id'] ?>"><?= e($rt['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-600 mb-1">Role</label>
+                    <select name="role" class="w-full text-xs font-semibold px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white">
+                        <option value="delivery" selected>🛵 Delivery Staff (Run-Sheet Only)</option>
+                        <option value="admin">🛡️ Tenant Admin (Full Access)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-600 mb-1">Email (Optional)</label>
+                    <input type="email" name="email" placeholder="rider@dairy.com" class="w-full text-xs px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500">
+                </div>
+            </div>
+
+            <div class="text-right">
+                <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow transition">
+                    + Add Staff Member
+                </button>
+            </div>
+        </form>
+
+        <!-- Staff List -->
+        <div class="space-y-3">
+            <?php if (empty($staff)): ?>
+                <p class="text-xs text-slate-400 italic text-center py-4">No staff or delivery riders registered yet. Add your first rider above!</p>
+            <?php else: ?>
+                <?php foreach ($staff as $st): ?>
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl border <?= $st['is_active'] ? 'border-slate-200 bg-white' : 'border-slate-100 bg-slate-50 opacity-75' ?> gap-3">
+                        <div class="flex items-center gap-3">
+                            <div class="w-9 h-9 rounded-xl <?= $st['role'] === 'delivery' ? 'bg-amber-100 text-amber-800' : 'bg-purple-100 text-purple-800' ?> flex items-center justify-center text-sm font-black">
+                                <?= $st['role'] === 'delivery' ? '🛵' : '🛡️' ?>
+                            </div>
+                            <div>
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <span class="text-sm font-black text-slate-900"><?= e($st['name']) ?></span>
+                                    <span class="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full <?= $st['role'] === 'delivery' ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-purple-100 text-purple-800 border border-purple-200' ?>">
+                                        <?= $st['role'] === 'delivery' ? 'Delivery Rider' : 'Admin' ?>
+                                    </span>
+                                    <?php if (!$st['is_active']): ?>
+                                        <span class="text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-slate-200 text-slate-600">
+                                            Inactive
+                                        </span>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="text-xs text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
+                                    <span class="font-mono text-slate-700 font-bold">📞 <?= e($st['phone']) ?></span>
+                                    <?php if (!empty($st['assigned_route_name'])): ?>
+                                        <span>•</span>
+                                        <span class="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-bold border border-blue-200 text-[11px]">
+                                            🗺️ <?= e($st['assigned_route_name']) ?>
+                                        </span>
+                                    <?php else: ?>
+                                        <span>•</span>
+                                        <span class="text-slate-400">All Routes</span>
+                                    <?php endif; ?>
+                                    <?php if (!empty($st['email'])): ?>
+                                        <span>•</span>
+                                        <span><?= e($st['email']) ?></span>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-3 self-end sm:self-center">
+                            <form method="POST" action="<?= url("/settings/staff/{$st['id']}/toggle") ?>">
+                                <?= \App\Core\Auth::csrfField() ?>
+                                <button type="submit" class="px-2.5 py-1.5 rounded-lg text-xs font-bold border <?= $st['is_active'] ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100' ?>">
+                                    <?= $st['is_active'] ? 'Deactivate' : 'Activate' ?>
+                                </button>
+                            </form>
+
+                            <form method="POST" action="<?= url("/settings/staff/{$st['id']}/delete") ?>" onsubmit="return confirm('Delete this staff member?');">
+                                <?= \App\Core\Auth::csrfField() ?>
+                                <button type="submit" class="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 text-xs font-bold" title="Delete Staff Member">
+                                    🗑️
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </div>
+    </div>
 </div>

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controllers\Api;
 
+use App\Core\Auth;
 use App\Core\Request;
 use App\Enums\DeliveryShift;
 use App\Enums\DeliveryStatus;
@@ -24,12 +25,29 @@ final class DeliveryApiController extends ApiBaseController
         $date = (string)$request->get('date', date('Y-m-d'));
         $shift = (string)$request->get('shift', (int)date('H') >= 14 ? 'evening' : 'morning');
         $route = (string)$request->get('route', '');
+        if (empty($route) && Auth::isDeliveryBoy() && !empty(Auth::assignedRouteName())) {
+            $route = (string)Auth::assignedRouteName();
+        }
+        $search = trim((string)$request->get('q', (string)$request->get('search', '')));
+        $page = $request->get('page') !== null ? (int)$request->get('page') : null;
+        $perPage = (int)$request->get('per_page', 25);
+        if ($perPage <= 0) {
+            $perPage = 25;
+        }
 
         if (!in_array($shift, ['morning', 'evening'], true)) {
             $shift = 'morning';
         }
 
-        $runSheet = $this->deliveryService->getRunSheet($tenantId, $date, $shift, empty($route) ? null : $route);
+        $runSheet = $this->deliveryService->getRunSheet(
+            $tenantId,
+            $date,
+            $shift,
+            empty($route) ? null : $route,
+            empty($search) ? null : $search,
+            $page,
+            $perPage
+        );
 
         $this->jsonSuccess($runSheet);
     }

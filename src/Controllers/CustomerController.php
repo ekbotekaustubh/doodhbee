@@ -13,6 +13,7 @@ final class CustomerController
 {
     public function index(Request $request): void
     {
+        Auth::requireTenantAdmin();
         $search = trim((string)$request->get('q', ''));
         $route = trim((string)$request->get('route', ''));
         $status = trim((string)$request->get('status', ''));
@@ -59,6 +60,7 @@ final class CustomerController
 
     public function createView(Request $request): void
     {
+        Auth::requireTenantAdmin();
         $subRes = ApiClient::get('/api/subscription');
         $quota = $subRes['data']['quota'] ?? [];
 
@@ -71,10 +73,14 @@ final class CustomerController
         $prodRes = ApiClient::get('/api/products', ['active_only' => true]);
         $products = $prodRes['data'] ?? [];
 
+        $routesRes = ApiClient::get('/api/routes', ['active_only' => true]);
+        $routes = $routesRes['data'] ?? [];
+
         View::render('customers/form', [
             'customer' => null,
             'quota' => $quota,
             'products' => $products,
+            'routes' => $routes,
             'subscriptions' => [],
             'error' => Auth::flash('error'),
         ], 'main');
@@ -82,9 +88,11 @@ final class CustomerController
 
     public function store(Request $request): void
     {
+        Auth::requireTenantAdmin();
         $name = trim((string)$request->post('name', ''));
         $phone = trim((string)$request->post('phone', ''));
         $address = trim((string)$request->post('address', ''));
+        $routeId = (int)$request->post('route_id', 0);
         $routeName = trim((string)$request->post('route_name', 'Main Route'));
         $status = (string)$request->post('status', 'active');
 
@@ -128,6 +136,7 @@ final class CustomerController
             'name' => $name,
             'phone' => $phone,
             'address' => $address,
+            'route_id' => $routeId,
             'route_name' => $routeName,
             'status' => $status,
             'subscriptions' => $subsList,
@@ -150,6 +159,7 @@ final class CustomerController
 
     public function editView(Request $request, array $params): void
     {
+        Auth::requireTenantAdmin();
         $id = (int)($params['id'] ?? 0);
 
         // Fetch customer details via REST API
@@ -166,10 +176,14 @@ final class CustomerController
         $prodRes = ApiClient::get('/api/products', ['active_only' => true]);
         $products = $prodRes['data'] ?? [];
 
+        $routesRes = ApiClient::get('/api/routes');
+        $routes = $routesRes['data'] ?? [];
+
         View::render('customers/form', [
             'customer' => $customer,
             'quota' => $quota,
             'products' => $products,
+            'routes' => $routes,
             'subscriptions' => $customer['subscriptions'] ?? [],
             'error' => Auth::flash('error'),
             'success' => Auth::flash('success'),
@@ -178,10 +192,12 @@ final class CustomerController
 
     public function update(Request $request, array $params): void
     {
+        Auth::requireTenantAdmin();
         $id = (int)($params['id'] ?? 0);
         $name = trim((string)$request->post('name', ''));
         $phone = trim((string)$request->post('phone', ''));
         $address = trim((string)$request->post('address', ''));
+        $routeId = (int)$request->post('route_id', 0);
         $routeName = trim((string)$request->post('route_name', 'Main Route'));
         $status = (string)$request->post('status', 'active');
 
@@ -219,6 +235,7 @@ final class CustomerController
             'name' => $name,
             'phone' => $phone,
             'address' => $address,
+            'route_id' => $routeId,
             'route_name' => $routeName,
             'status' => $status,
             'subscriptions' => $subsList,
@@ -241,6 +258,7 @@ final class CustomerController
 
     public function addLeave(Request $request, array $params): void
     {
+        Auth::requireTenantAdmin();
         $customerId = (int)($params['id'] ?? 0);
         $startDate = (string)$request->post('start_date');
         $endDate = (string)$request->post('end_date');
@@ -264,6 +282,7 @@ final class CustomerController
 
     public function deleteLeave(Request $request, array $params): void
     {
+        Auth::requireTenantAdmin();
         $customerId = (int)($params['id'] ?? 0);
         $leaveId = (int)($params['leave_id'] ?? 0);
 
@@ -309,6 +328,7 @@ final class CustomerController
 
     public function exportCsv(Request $request): void
     {
+        Auth::requireTenantAdmin();
         $search = trim((string)$request->get('q', ''));
         $route = trim((string)$request->get('route', ''));
         $status = trim((string)$request->get('status', ''));
@@ -376,6 +396,7 @@ final class CustomerController
 
     public function importCsv(Request $request): void
     {
+        Auth::requireTenantAdmin();
         $file = $request->file('csv_file');
         if (!$file || empty($file['tmp_name']) || $file['error'] !== UPLOAD_ERR_OK) {
             Auth::flash('error', 'Please select a valid CSV file to upload.');

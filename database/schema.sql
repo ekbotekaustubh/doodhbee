@@ -38,6 +38,10 @@ CREATE TABLE super_admins (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+
+INSERT INTO `super_admins` (`id`, `name`, `email`, `password_hash`, `created_at`) VALUES
+(1, 'DoodhBee Platform Admin', 'hello@doodhbee.com', '$2y$10$u.8ehnRvccsqDsJ3ggtxpu1dlibTop.K74gkGkFKSpLWfJvfZLT1C', '2026-11-14 20:07:51');
+
 -- 3. Tenants (Milkmen / Dairies)
 CREATE TABLE tenants (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -112,20 +116,36 @@ CREATE TABLE products (
     INDEX idx_tenant_product (tenant_id, is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 6c. Tenant Delivery Routes (Independent Route Entity)
+CREATE TABLE routes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id INT NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    description TEXT NULL,
+    sort_order INT DEFAULT 0,
+    is_active TINYINT(1) DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+    UNIQUE KEY uq_tenant_route_name (tenant_id, name),
+    INDEX idx_tenant_route_active (tenant_id, is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- 7. Customers
 CREATE TABLE customers (
     id INT AUTO_INCREMENT PRIMARY KEY,
     tenant_id INT NOT NULL,
+    route_id INT NOT NULL,
     name VARCHAR(100) NOT NULL,
     phone VARCHAR(20) NOT NULL,
     address TEXT,
-    route_name VARCHAR(50) DEFAULT 'Main Route',
     milk_types VARCHAR(100) DEFAULT 'cow',
     status ENUM('active', 'inactive') DEFAULT 'active',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+    FOREIGN KEY (route_id) REFERENCES routes(id) ON DELETE RESTRICT,
     INDEX idx_tenant_customer (tenant_id, status),
-    INDEX idx_tenant_route (tenant_id, route_name)
+    INDEX idx_tenant_route_id (tenant_id, route_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 7b. Customer Product Subscriptions (Approach A: Independent Quantities & Rates per Product)
@@ -237,10 +257,30 @@ CREATE TABLE payments (
     INDEX idx_tenant_customer_payments (tenant_id, customer_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 11b. Tenant Users & Delivery Staff
+CREATE TABLE tenant_users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id INT NOT NULL,
+    role ENUM('admin', 'delivery') NOT NULL DEFAULT 'delivery',
+    assigned_route_id INT NULL,
+    name VARCHAR(100) NOT NULL,
+    phone VARCHAR(20) NOT NULL,
+    email VARCHAR(100) NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    is_active TINYINT(1) DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+    FOREIGN KEY (assigned_route_id) REFERENCES routes(id) ON DELETE SET NULL,
+    UNIQUE KEY uq_tenant_user_phone (tenant_id, phone),
+    INDEX idx_tenant_user_role (tenant_id, role, is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- 12. API Access Tokens (Mobile Apps & Headless REST API)
 CREATE TABLE api_tokens (
     id INT AUTO_INCREMENT PRIMARY KEY,
     tenant_id INT NULL,
+    user_id INT NULL,
     admin_id INT NULL,
     token_hash VARCHAR(64) UNIQUE NOT NULL,
     token_type ENUM('tenant', 'admin') NOT NULL DEFAULT 'tenant',
@@ -249,6 +289,7 @@ CREATE TABLE api_tokens (
     expires_at TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES tenant_users(id) ON DELETE CASCADE,
     FOREIGN KEY (admin_id) REFERENCES super_admins(id) ON DELETE CASCADE,
     INDEX idx_api_tokens (token_hash, token_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

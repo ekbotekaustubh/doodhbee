@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../core/api/api_client.dart';
 import '../core/api/auth_service.dart';
 import 'home_screen.dart';
 
@@ -12,21 +10,18 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _loginController = TextEditingController(text: '9822000001');
-  final _passwordController = TextEditingController(text: 'password123');
-  final _serverUrlController = TextEditingController();
-
+  final _loginController = TextEditingController();
+  final _passwordController = TextEditingController();
   final AuthService _authService = AuthService();
-  final ApiClient _api = ApiClient();
 
   bool _isLoading = false;
   String? _errorMessage;
-  bool _showServerConfig = false;
 
   @override
-  void initState() {
-    super.initState();
-    _serverUrlController.text = _api.baseUrl;
+  void dispose() {
+    _loginController.dispose();
+    _passwordController.dispose();
+    super.dispose();
   }
 
   Future<void> _handleLogin() async {
@@ -42,14 +37,6 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = true;
       _errorMessage = null;
     });
-
-    // Save server URL if modified
-    final customUrl = _serverUrlController.text.trim();
-    if (customUrl.isNotEmpty && customUrl != _api.baseUrl) {
-      _api.setBaseUrl(customUrl);
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('custom_base_url', customUrl);
-    }
 
     final res = await _authService.login(login, password);
 
@@ -206,70 +193,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
                       ),
               ),
-              const SizedBox(height: 24),
-
-              // Quick Demo Accounts Fill
-              const Text(
-                'Quick Demo Switcher:',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF64748B)),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () {
-                        _loginController.text = '9822000001';
-                        _passwordController.text = 'password123';
-                      },
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                      child: const Text('Demo 1 (Paid)', style: TextStyle(fontSize: 12)),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () {
-                        _loginController.text = '9876500000';
-                        _passwordController.text = 'password123';
-                      },
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                      child: const Text('Demo 2 (Free)', style: TextStyle(fontSize: 12)),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-
-              // Server Endpoint Toggle
-              Center(
-                child: TextButton.icon(
-                  onPressed: () => setState(() => _showServerConfig = !_showServerConfig),
-                  icon: Icon(_showServerConfig ? Icons.keyboard_arrow_up : Icons.settings, size: 16),
-                  label: Text(_showServerConfig ? 'Hide Server Settings' : 'Change Server URL', style: const TextStyle(fontSize: 12)),
-                ),
-              ),
-
-              if (_showServerConfig) ...[
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _serverUrlController,
-                  decoration: InputDecoration(
-                    labelText: 'API Gateway URL',
-                    hintText: 'https://www.doodhbee.com/api',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  ),
-                  style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
-                ),
-              ],
             ],
           ),
         ),

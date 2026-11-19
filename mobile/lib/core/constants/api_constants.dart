@@ -16,6 +16,7 @@ class ApiConstants {
 
   static const String customers = '/customers';
   static const String routes = '/customers/routes';
+  static const String deliveryRoutes = '/routes';
 
   static const String deliveries = '/deliveries';
   static const String deliveryToggle = '/deliveries/toggle';

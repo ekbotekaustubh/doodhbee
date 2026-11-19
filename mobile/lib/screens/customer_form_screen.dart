@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../core/api/api_client.dart';
 import '../core/constants/api_constants.dart';
 import '../models/customer.dart';
+import '../models/delivery_route.dart';
 
 class CustomerFormScreen extends StatefulWidget {
   final Customer? customer;
@@ -17,7 +18,10 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
-  final _routeController = TextEditingController(text: 'Main Route');
+
+  List<DeliveryRoute> _routes = [];
+  int? _selectedRouteId;
+  bool _isLoadingRoutes = false;
 
   double _cowQty = 1.0;
   double? _cowRate;
@@ -35,7 +39,7 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
       _nameController.text = c.name;
       _phoneController.text = c.phone;
       _addressController.text = c.address;
-      _routeController.text = c.routeName;
+      _selectedRouteId = c.routeId;
 
       for (var s in c.subscriptions) {
         if (s.productCode == 'cow') {
@@ -47,13 +51,115 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
         }
       }
     }
+    _loadRoutes();
+  }
+
+  Future<void> _loadRoutes() async {
+    setState(() => _isLoadingRoutes = true);
+    final res = await _api.get(ApiConstants.deliveryRoutes);
+
+    if (res.success && res.data != null) {
+      final list = (res.data as List).map((m) => DeliveryRoute.fromJson(m)).toList();
+      setState(() {
+        _routes = list;
+        if (_selectedRouteId == null || !_routes.any((r) => r.id == _selectedRouteId)) {
+          final defaultR = _routes.firstWhere(
+            (r) => r.isDefault,
+            orElse: () => _routes.isNotEmpty
+                ? _routes.first
+                : DeliveryRoute(id: 0, tenantId: 0, name: 'Main Route'),
+          );
+          if (defaultR.id > 0) {
+            _selectedRouteId = defaultR.id;
+          }
+        }
+      });
+    }
+
+    setState(() => _isLoadingRoutes = false);
+  }
+
+  void _showAddRouteDialog() {
+    final nameController = TextEditingController();
+    final descController = TextEditingController();
+    String? localError;
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Add Delivery Route'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (localError != null) ...[
+                    Text(localError!, style: const TextStyle(color: Colors.red, fontSize: 12)),
+                    const SizedBox(height: 8),
+                  ],
+                  TextField(
+                    controller: nameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Route Name *',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: descController,
+                    decoration: const InputDecoration(
+                      labelText: 'Description (Optional)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    final name = nameController.text.trim();
+                    if (name.isEmpty) {
+                      setDialogState(() => localError = 'Route name is required.');
+                      return;
+                    }
+
+                    final res = await _api.post(ApiConstants.deliveryRoutes, data: {
+                      'name': name,
+                      'description': descController.text.trim(),
+                    });
+
+                    if (res.success && res.data != null) {
+                      final newRoute = DeliveryRoute.fromJson(res.data);
+                      if (ctx.mounted) Navigator.pop(ctx);
+                      await _loadRoutes();
+                      if (mounted) {
+                        setState(() {
+                          _selectedRouteId = newRoute.id;
+                        });
+                      }
+                    } else {
+                      setDialogState(() => localError = res.error ?? 'Failed to create route.');
+                    }
+                  },
+                  child: const Text('Add Route'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _saveCustomer() async {
     final name = _nameController.text.trim();
     final phone = _phoneController.text.trim();
     final address = _addressController.text.trim();
-    final route = _routeController.text.trim();
 
     if (name.isEmpty || phone.isEmpty) {
       setState(() => _errorMessage = 'Name and Phone Number are required.');
@@ -77,7 +183,7 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
       'name': name,
       'phone': phone,
       'address': address,
-      'route_name': route.isEmpty ? 'Main Route' : route,
+      if (_selectedRouteId != null) 'route_id': _selectedRouteId,
       'status': 'active',
       'subscriptions': subs,
     };
@@ -160,13 +266,37 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
             ),
             const SizedBox(height: 14),
 
-            TextField(
-              controller: _routeController,
-              decoration: const InputDecoration(
-                labelText: 'Route Name',
-                prefixIcon: Icon(Icons.alt_route),
-                border: OutlineInputBorder(),
-              ),
+            // Route Selector
+            Row(
+              children: [
+                Expanded(
+                  child: _isLoadingRoutes
+                      ? const Center(child: Padding(padding: EdgeInsets.all(8), child: CircularProgressIndicator()))
+                      : DropdownButtonFormField<int>(
+                          initialValue: _selectedRouteId,
+                          decoration: const InputDecoration(
+                            labelText: 'Delivery Route *',
+                            prefixIcon: Icon(Icons.alt_route),
+                            border: OutlineInputBorder(),
+                          ),
+                          items: _routes.map((r) {
+                            return DropdownMenuItem<int>(
+                              value: r.id,
+                              child: Text(r.isDefault ? '${r.name} (Default)' : r.name),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            setState(() => _selectedRouteId = val);
+                          },
+                        ),
+                ),
+                const SizedBox(width: 8),
+                IconButton.filledTonal(
+                  icon: const Icon(Icons.add),
+                  tooltip: 'Create New Route',
+                  onPressed: _showAddRouteDialog,
+                ),
+              ],
             ),
             const SizedBox(height: 24),
 

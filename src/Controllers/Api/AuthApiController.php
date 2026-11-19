@@ -8,17 +8,20 @@ use App\Core\RateLimiter;
 use App\Core\Request;
 use App\Services\ProductService;
 use App\Services\QuotaService;
+use App\Services\RouteService;
 
 final class AuthApiController extends ApiBaseController
 {
     private QuotaService $quotaService;
     private ProductService $productService;
+    private RouteService $routeService;
 
     public function __construct()
     {
         parent::__construct();
         $this->quotaService = new QuotaService();
         $this->productService = new ProductService();
+        $this->routeService = new RouteService();
     }
 
     public function login(Request $request): void
@@ -54,7 +57,31 @@ final class AuthApiController extends ApiBaseController
             [$login, $login]
         );
 
-        if (!$tenant || !password_verify($password, $tenant['password_hash'])) {
+        $staffUser = null;
+        $isOwnerLogin = false;
+
+        if ($tenant && password_verify($password, $tenant['password_hash'])) {
+            $isOwnerLogin = true;
+        } else {
+            // Check if it's a staff/delivery user
+            $cleanPhone = preg_replace('/[^0-9]/', '', $login);
+            $staffUser = $this->db->fetchOne(
+                "SELECT u.*, t.business_name, t.owner_name, t.status AS tenant_status, r.name AS assigned_route_name
+                 FROM tenant_users u
+                 JOIN tenants t ON t.id = u.tenant_id
+                 LEFT JOIN routes r ON r.id = u.assigned_route_id
+                 WHERE (u.phone = ? OR u.phone = ? OR u.email = ?) AND u.is_active = 1",
+                [$login, $cleanPhone, $login]
+            );
+
+            if ($staffUser && password_verify($password, $staffUser['password_hash'])) {
+                $tenant = $this->db->fetchOne("SELECT * FROM tenants WHERE id = ?", [$staffUser['tenant_id']]);
+            } else {
+                $staffUser = null;
+            }
+        }
+
+        if (!$tenant || (!$isOwnerLogin && !$staffUser)) {
             RateLimiter::hit($throttleKey, 900);
             $this->jsonError('Invalid phone/email or password.', 401, 'INVALID_CREDENTIALS');
         }
@@ -67,22 +94,32 @@ final class AuthApiController extends ApiBaseController
         }
 
         // Generate Bearer token
-        $token = Auth::createApiToken((int)$tenant['id'], 'tenant', $deviceName, 90);
+        $userId = $staffUser ? (int)$staffUser['id'] : null;
+        $token = Auth::createApiToken((int)$tenant['id'], 'tenant', $deviceName, 90, $userId);
         $quota = $this->quotaService->getTenantQuota((int)$tenant['id']);
+
+        $userPayload = [
+            'id' => (int)$tenant['id'],
+            'user_id' => $userId,
+            'name' => $staffUser ? (string)$staffUser['name'] : (string)$tenant['owner_name'],
+            'owner_name' => (string)$tenant['owner_name'],
+            'business_name' => (string)$tenant['business_name'],
+            'phone' => $staffUser ? (string)$staffUser['phone'] : (string)$tenant['phone'],
+            'email' => $staffUser ? (string)($staffUser['email'] ?? '') : (string)($tenant['email'] ?? ''),
+            'role' => $staffUser ? (string)$staffUser['role'] : 'admin',
+            'assigned_route_id' => ($staffUser && $staffUser['assigned_route_id']) ? (int)$staffUser['assigned_route_id'] : null,
+            'assigned_route_name' => $staffUser ? ($staffUser['assigned_route_name'] ?? null) : null,
+            'is_owner' => $isOwnerLogin,
+            'status' => $tenant['status'],
+            'created_at' => $staffUser ? $staffUser['created_at'] : $tenant['created_at'],
+        ];
 
         $this->jsonSuccess([
             'token' => $token,
             'token_type' => 'Bearer',
             'expires_in_days' => 90,
-            'tenant' => [
-                'id' => (int)$tenant['id'],
-                'business_name' => $tenant['business_name'],
-                'owner_name' => $tenant['owner_name'],
-                'phone' => $tenant['phone'],
-                'email' => $tenant['email'],
-                'status' => $tenant['status'],
-                'created_at' => $tenant['created_at'],
-            ],
+            'tenant' => $userPayload,
+            'user' => $userPayload,
             'quota' => $quota,
         ], 'Login successful');
     }
@@ -153,6 +190,9 @@ final class AuthApiController extends ApiBaseController
 
             // Default products
             $this->productService->ensureDefaultProducts($tenantId);
+
+            // Default route (Main Route)
+            $this->routeService->ensureDefaultRoute($tenantId);
         });
 
         $tenant = $this->db->fetchOne("SELECT * FROM tenants WHERE id = ?", [$tenantId]);
@@ -190,6 +230,15 @@ final class AuthApiController extends ApiBaseController
 
         $this->jsonSuccess([
             'tenant' => $freshTenant,
+            'user' => [
+                'id' => $tenantId,
+                'user_id' => $tenant['user_id'] ?? null,
+                'name' => $tenant['user_name'] ?? $freshTenant['owner_name'],
+                'role' => $tenant['role'] ?? 'admin',
+                'assigned_route_id' => $tenant['assigned_route_id'] ?? null,
+                'assigned_route_name' => $tenant['assigned_route_name'] ?? null,
+                'is_owner' => $tenant['is_owner'] ?? true,
+            ],
             'quota' => $quota,
             'settings' => $settings,
         ]);

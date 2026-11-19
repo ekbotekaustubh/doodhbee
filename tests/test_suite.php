@@ -170,7 +170,8 @@ runTest("Customer Quota Guard: Free Tier 5-Limit Enforcement", function() use ($
     }
 
     // Add 5th customer to fill quota
-    $db->execute("INSERT INTO customers (tenant_id, name, phone, address, status) VALUES (2, 'Fifth Test Customer', '9999900005', 'Test Address', 'active')");
+    $r2 = (int)$db->fetchValue("SELECT id FROM routes WHERE tenant_id = 2 LIMIT 1");
+    $db->execute("INSERT INTO customers (tenant_id, route_id, name, phone, address, status) VALUES (2, ?, 'Fifth Test Customer', '9999900005', 'Test Address', 'active')", [$r2]);
 
     $quotaFull = $quotaService->getTenantQuota(2);
     if ($quotaFull['active_customers'] !== 5 || $quotaFull['can_add'] !== false) {
@@ -249,8 +250,9 @@ runTest("Customer Milk Type Multiselect: Cow Milk, Buffalo Milk, and Both", func
     }
 
     // 2. Insert customer with Cow milk only
-    $db->execute("INSERT INTO customers (tenant_id, name, phone, address, route_name, milk_types, status) 
-                  VALUES (1, 'Test Cow Only', '9999911111', 'Block A', 'Test Route', 'cow', 'active')");
+    $r1 = (int)$db->fetchValue("SELECT id FROM routes WHERE tenant_id = 1 LIMIT 1");
+    $db->execute("INSERT INTO customers (tenant_id, route_id, name, phone, address, milk_types, status) 
+                  VALUES (1, ?, 'Test Cow Only', '9999911111', 'Block A', 'cow', 'active')", [$r1]);
     $c1 = $db->fetchOne("SELECT * FROM customers WHERE phone = '9999911111'");
     if (!$c1 || $c1['milk_types'] !== 'cow') {
         throw new \Exception("Expected milk_types 'cow', got: " . ($c1['milk_types'] ?? 'null'));
@@ -261,8 +263,8 @@ runTest("Customer Milk Type Multiselect: Cow Milk, Buffalo Milk, and Both", func
     }
 
     // 3. Insert customer with Buffalo milk only
-    $db->execute("INSERT INTO customers (tenant_id, name, phone, address, route_name, milk_types, status) 
-                  VALUES (1, 'Test Buffalo Only', '9999922222', 'Block B', 'Test Route', 'buffalo', 'active')");
+    $db->execute("INSERT INTO customers (tenant_id, route_id, name, phone, address, milk_types, status) 
+                  VALUES (1, ?, 'Test Buffalo Only', '9999922222', 'Block B', 'buffalo', 'active')", [$r1]);
     $c2 = $db->fetchOne("SELECT * FROM customers WHERE phone = '9999922222'");
     if (!$c2 || $c2['milk_types'] !== 'buffalo') {
         throw new \Exception("Expected milk_types 'buffalo', got: " . ($c2['milk_types'] ?? 'null'));
@@ -273,8 +275,8 @@ runTest("Customer Milk Type Multiselect: Cow Milk, Buffalo Milk, and Both", func
     }
 
     // 4. Insert customer with BOTH Cow and Buffalo (Multiselect)
-    $db->execute("INSERT INTO customers (tenant_id, name, phone, address, route_name, milk_types, status) 
-                  VALUES (1, 'Test Both Milks', '9999933333', 'Block C', 'Test Route', 'cow,buffalo', 'active')");
+    $db->execute("INSERT INTO customers (tenant_id, route_id, name, phone, address, milk_types, status) 
+                  VALUES (1, ?, 'Test Both Milks', '9999933333', 'Block C', 'cow,buffalo', 'active')", [$r1]);
     $c3 = $db->fetchOne("SELECT * FROM customers WHERE phone = '9999933333'");
     if (!$c3 || $c3['milk_types'] !== 'cow,buffalo') {
         throw new \Exception("Expected milk_types 'cow,buffalo', got: " . ($c3['milk_types'] ?? 'null'));
@@ -360,9 +362,10 @@ runTest("Delivery Calendar Matrix & Milk Type on Invoices", function() use ($db,
 
     // 3. Test invoice query joins customer milk_types
     $inv = $db->fetchOne(
-        "SELECT inv.*, c.name AS customer_name, c.phone AS customer_phone, c.route_name, c.milk_types
+        "SELECT inv.*, c.name AS customer_name, c.phone AS customer_phone, r.name AS route_name, c.milk_types
          FROM invoices inv
          JOIN customers c ON c.id = inv.customer_id
+         JOIN routes r ON r.id = c.route_id
          WHERE inv.tenant_id = 1
          LIMIT 1"
     );
@@ -425,10 +428,18 @@ runTest("Customer CSV Import, Export, and Sample Template", function() use ($db)
 
         $milkTypes = count($subs) === 2 ? 'cow,buffalo' : ($cowQty > 0 ? 'cow' : 'buffalo');
 
+        $routeRecord = $db->fetchOne("SELECT id FROM routes WHERE tenant_id = 1 AND name = ?", [$route]);
+        if (!$routeRecord) {
+            $db->execute("INSERT INTO routes (tenant_id, name, is_active) VALUES (1, ?, 1)", [$route]);
+            $rId = (int)$db->lastInsertId();
+        } else {
+            $rId = (int)$routeRecord['id'];
+        }
+
         $db->execute(
-            "INSERT INTO customers (tenant_id, name, phone, address, route_name, milk_types, status)
+            "INSERT INTO customers (tenant_id, route_id, name, phone, address, milk_types, status)
              VALUES (1, ?, ?, ?, ?, ?, ?)",
-            [$name, $phone, $addr, $route, $milkTypes, $status]
+            [$rId, $name, $phone, $addr, $milkTypes, $status]
         );
         $newId = (int)$db->lastInsertId();
         $prodSvc->saveCustomerSubscriptions(1, $newId, $subs);
@@ -501,9 +512,10 @@ runTest("Customer Subscriptions: Independent Quantities & Rates for Both Milks",
     $tenantId = 1;
 
     // Create a customer
-    $db->execute("INSERT INTO customers (tenant_id, name, phone, address, route_name, milk_types, status) 
-                  VALUES (?, 'Dual Milk Test Cust', '9888800001', 'Flat 100', 'Test Route', 'cow,buffalo', 'active')",
-                  [$tenantId]);
+    $r1 = (int)$db->fetchValue("SELECT id FROM routes WHERE tenant_id = ? LIMIT 1", [$tenantId]);
+    $db->execute("INSERT INTO customers (tenant_id, route_id, name, phone, address, milk_types, status) 
+                  VALUES (?, ?, 'Dual Milk Test Cust', '9888800001', 'Flat 100', 'cow,buffalo', 'active')",
+                  [$tenantId, $r1]);
     $custId = (int)$db->lastInsertId();
 
     $cowProd = $db->fetchOne("SELECT id FROM products WHERE tenant_id = ? AND code = 'cow'", [$tenantId]);
@@ -552,9 +564,10 @@ runTest("Daily Delivery Run-Sheet: Itemized Product Tracking & Zero-Charge Rule"
     $productService = new \App\Services\ProductService();
 
     // Create a customer
-    $db->execute("INSERT INTO customers (tenant_id, name, phone, address, route_name, milk_types, status) 
-                  VALUES (?, 'RunSheet Item Test Cust', '9888800002', 'Flat 200', 'Test Route', 'cow,buffalo', 'active')",
-                  [$tenantId]);
+    $r1 = (int)$db->fetchValue("SELECT id FROM routes WHERE tenant_id = ? LIMIT 1", [$tenantId]);
+    $db->execute("INSERT INTO customers (tenant_id, route_id, name, phone, address, milk_types, status) 
+                  VALUES (?, ?, 'RunSheet Item Test Cust', '9888800002', 'Flat 200', 'cow,buffalo', 'active')",
+                  [$tenantId, $r1]);
     $custId = (int)$db->lastInsertId();
 
     $cowProd = $db->fetchOne("SELECT id FROM products WHERE tenant_id = ? AND code = 'cow'", [$tenantId]);
@@ -610,9 +623,10 @@ runTest("Multi-Product Invoicing: Itemized Product Subtotals", function() use ($
     $productService = new \App\Services\ProductService();
 
     // Create a customer
-    $db->execute("INSERT INTO customers (tenant_id, name, phone, address, route_name, milk_types, status) 
-                  VALUES (?, 'Billing Item Test Cust', '9888800003', 'Flat 300', 'Test Route', 'cow,buffalo', 'active')",
-                  [$tenantId]);
+    $r1 = (int)$db->fetchValue("SELECT id FROM routes WHERE tenant_id = ? LIMIT 1", [$tenantId]);
+    $db->execute("INSERT INTO customers (tenant_id, route_id, name, phone, address, milk_types, status) 
+                  VALUES (?, ?, 'Billing Item Test Cust', '9888800003', 'Flat 300', 'cow,buffalo', 'active')",
+                  [$tenantId, $r1]);
     $custId = (int)$db->lastInsertId();
 
     $cowProd = $db->fetchOne("SELECT id FROM products WHERE tenant_id = ? AND code = 'cow'", [$tenantId]);
@@ -648,6 +662,204 @@ runTest("Multi-Product Invoicing: Itemized Product Subtotals", function() use ($
 
     // Clean up
     $db->execute("DELETE FROM customers WHERE id = ?", [$custId]);
+}, $passed, $failed);
+
+// TEST 14: Route Entity Lifecycle, Tenant Scoping & Customer Assignment
+runTest("Route Entity: Tenant Isolation, Default Route & Foreign Key Guard", function() use ($db) {
+    $routeService = new \App\Services\RouteService();
+    $tenantId = 1;
+    
+    // 1. Ensure default route exists
+    $defaultRoute = $routeService->ensureDefaultRoute($tenantId);
+    $defaultRouteId = (int)$defaultRoute['id'];
+    if ($defaultRouteId <= 0) {
+        throw new \Exception("Failed to ensure default route for tenant {$tenantId}");
+    }
+    
+    $route = $routeService->getRouteById($defaultRouteId, $tenantId);
+    if (!$route || $route['name'] !== 'Main Route') {
+        throw new \Exception("Default route must be named 'Main Route'");
+    }
+    
+    // 2. Prevent deleting default route
+    $deleted = false;
+    try {
+        $routeService->deleteRoute($defaultRouteId, $tenantId);
+        $deleted = true;
+    } catch (\Exception $e) {
+        // Expected
+    }
+    if ($deleted) {
+        throw new \Exception("Security check failed: Default Main Route was deleted!");
+    }
+    
+    // 3. Create a custom route
+    $newRoute = $routeService->createRoute($tenantId, 'Express Route ' . uniqid(), 'Fast morning route', 10);
+    $newRouteId = (int)$newRoute['id'];
+    if ($newRouteId <= 0) {
+        throw new \Exception("Failed to create custom route");
+    }
+    
+    // 4. Verify tenant isolation: Tenant 2 cannot access or delete Tenant 1's route
+    $tenant2Route = $routeService->getRouteById($newRouteId, 2);
+    if ($tenant2Route !== null) {
+        throw new \Exception("Tenant isolation failure: Tenant 2 accessed Tenant 1's route!");
+    }
+    
+    // 5. Assign customer to new route
+    $db->execute("INSERT INTO customers (tenant_id, route_id, name, phone, address, status) VALUES (?, ?, 'Route Cust', '9991112223', 'Sample', 'active')", [$tenantId, $newRouteId]);
+    $custId = (int)$db->lastInsertId();
+    
+    // 6. Attempt to delete route with active customers - must throw exception
+    $deletedWithCust = false;
+    try {
+        $routeService->deleteRoute($newRouteId, $tenantId);
+        $deletedWithCust = true;
+    } catch (\Exception $e) {
+        // Expected
+    }
+    if ($deletedWithCust) {
+        throw new \Exception("Foreign key safeguard failed: Deleted route with assigned customers!");
+    }
+    
+    // Clean up
+    $db->execute("DELETE FROM customers WHERE id = ?", [$custId]);
+    $routeService->deleteRoute($newRouteId, $tenantId);
+}, $passed, $failed);
+
+// TEST 15: Runsheet Search, Route Scoping & Pagination
+runTest("Daily Run-Sheet: Search Filter, Route Scoping & Pagination", function() use ($deliveryService) {
+    $tenantId = 1;
+    $date = date('Y-m-d');
+    $shift = 'morning';
+
+    // 1. Full runsheet (unpaginated)
+    $sheet = $deliveryService->getRunSheet($tenantId, $date, $shift);
+    $totalHouses = $sheet['stats']['total_houses'];
+    if ($totalHouses === 0) {
+        throw new \Exception("Expected active customers in Tenant 1 runsheet");
+    }
+
+    // 2. Search by customer name
+    $sampleCustomer = $sheet['items'][0];
+    $sampleName = $sampleCustomer['customer_name'];
+    $searchResult = $deliveryService->getRunSheet($tenantId, $date, $shift, null, $sampleName);
+    if (empty($searchResult['items'])) {
+        throw new \Exception("Search by customer name '{$sampleName}' returned 0 results");
+    }
+    foreach ($searchResult['items'] as $it) {
+        if (!str_contains(strtolower($it['customer_name']), strtolower($sampleName)) &&
+            !str_contains(strtolower($it['phone']), strtolower($sampleName)) &&
+            !str_contains(strtolower($it['address']), strtolower($sampleName))) {
+            throw new \Exception("Search result item '{$it['customer_name']}' does not match query '{$sampleName}'");
+        }
+    }
+
+    // 3. Search non-existent customer
+    $emptySearch = $deliveryService->getRunSheet($tenantId, $date, $shift, null, 'NonExistentZXYZ9988');
+    if (!empty($emptySearch['items'])) {
+        throw new \Exception("Expected 0 results for non-existent search query");
+    }
+
+    // 4. Route Scoping: Filter by route
+    $routeName = $sampleCustomer['route_name'];
+    $routeSheet = $deliveryService->getRunSheet($tenantId, $date, $shift, $routeName);
+    foreach ($routeSheet['items'] as $it) {
+        if ($it['route_name'] !== $routeName) {
+            throw new \Exception("Route scoping breached: expected route '{$routeName}', got '{$it['route_name']}'");
+        }
+    }
+
+    // 5. Pagination
+    $paged = $deliveryService->getRunSheet($tenantId, $date, $shift, null, null, 1, 2);
+    if (!isset($paged['pagination'])) {
+        throw new \Exception("Pagination metadata missing from getRunSheet response");
+    }
+    if ($paged['pagination']['current_page'] !== 1 || $paged['pagination']['per_page'] !== 2) {
+        throw new \Exception("Pagination metadata mismatch");
+    }
+    if (count($paged['items']) > 2) {
+        throw new \Exception("Items count exceeds per_page (2) limit: got " . count($paged['items']));
+    }
+    // Verify shift metrics remain accurate across all houses, not just the page slice
+    if ($paged['stats']['total_houses'] !== $totalHouses) {
+        throw new \Exception("Pagination broke shift metrics: expected total {$totalHouses}, got {$paged['stats']['total_houses']}");
+    }
+}, $passed, $failed);
+
+// TEST 16: Staff Management & Delivery Rider RBAC Logic
+runTest("Staff Management & Delivery Rider RBAC Logic", function() use ($db) {
+    $staffService = new \App\Services\StaffService();
+    $tenantId = 1;
+
+    // 1. Create a new test staff member (delivery rider)
+    $phone = '9876599999';
+    $db->execute("DELETE FROM tenant_users WHERE phone = ? AND tenant_id = ?", [$phone, $tenantId]);
+
+    $mainRoute = $db->fetchOne("SELECT id FROM routes WHERE tenant_id = ? LIMIT 1", [$tenantId]);
+    $routeId = (int)$mainRoute['id'];
+
+    $staff = $staffService->createStaff(
+        $tenantId,
+        'Test Rider Ramu',
+        $phone,
+        'riderpass123',
+        $routeId,
+        'delivery',
+        'ramu@test.com'
+    );
+
+    if (empty($staff['id']) || $staff['role'] !== 'delivery' || $staff['assigned_route_id'] !== $routeId) {
+        throw new \Exception("Failed to create staff member correctly");
+    }
+
+    // Verify password verification
+    $userRow = $db->fetchOne("SELECT * FROM tenant_users WHERE id = ?", [$staff['id']]);
+    if (!password_verify('riderpass123', (string)$userRow['password_hash'])) {
+        throw new \Exception("Password hash verification failed for created staff");
+    }
+
+    // 2. Duplicate phone validation within tenant
+    try {
+        $staffService->createStaff($tenantId, 'Duplicate Ramu', $phone, 'pass456', null);
+        throw new \Exception("Duplicate phone did not throw InvalidArgumentException");
+    } catch (\InvalidArgumentException $e) {
+        // Expected
+    }
+
+    // 3. Toggle active status
+    $toggled = $staffService->toggleStaff((int)$staff['id'], $tenantId);
+    if ($toggled['is_active'] !== 0) {
+        throw new \Exception("Expected staff to be deactivated, got is_active=" . $toggled['is_active']);
+    }
+
+    // Toggle back
+    $toggled2 = $staffService->toggleStaff((int)$staff['id'], $tenantId);
+    if ($toggled2['is_active'] !== 1) {
+        throw new \Exception("Expected staff to be reactivated, got is_active=" . $toggled2['is_active']);
+    }
+
+    // 4. Update staff
+    $updated = $staffService->updateStaff(
+        (int)$staff['id'],
+        $tenantId,
+        'Test Rider Ramu Updated',
+        $phone,
+        null,
+        $routeId,
+        'delivery',
+        'ramu.updated@test.com'
+    );
+    if ($updated['name'] !== 'Test Rider Ramu Updated') {
+        throw new \Exception("Staff name update failed");
+    }
+
+    // 5. Delete staff
+    $staffService->deleteStaff((int)$staff['id'], $tenantId);
+    $deletedCheck = $staffService->getStaffById((int)$staff['id'], $tenantId);
+    if ($deletedCheck !== null) {
+        throw new \Exception("Staff deletion failed");
+    }
 }, $passed, $failed);
 
 echo "\n========================================================\n";

@@ -6,12 +6,16 @@ namespace App\Controllers;
 use App\Core\ApiClient;
 use App\Core\Auth;
 use App\Core\Request;
+use App\Core\Response;
 use App\Core\View;
 
 final class DashboardController
 {
     public function index(Request $request): void
     {
+        if (Auth::isDeliveryBoy()) {
+            Response::redirect(url('/deliveries'));
+        }
         $today = date('Y-m-d');
         $currentHour = (int)date('H');
         $defaultShift = $currentHour >= 14 ? 'evening' : 'morning';

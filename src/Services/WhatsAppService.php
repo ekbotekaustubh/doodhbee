@@ -145,9 +145,10 @@ final class WhatsAppService
     public function getInvoiceSharePayload(int $tenantId, int $invoiceId): ?array
     {
         $invoice = $this->db->fetchOne(
-            "SELECT i.*, c.name as customer_name, c.phone as customer_phone, c.route_name
+            "SELECT i.*, c.name as customer_name, c.phone as customer_phone, r.name as route_name
              FROM invoices i
              JOIN customers c ON c.id = i.customer_id
+             JOIN routes r ON r.id = c.route_id
              WHERE i.id = ? AND i.tenant_id = ?",
             [$invoiceId, $tenantId]
         );

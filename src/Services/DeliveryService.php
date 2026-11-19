@@ -18,18 +18,27 @@ final class DeliveryService
         $this->productService = new ProductService();
     }
 
-    public function getRunSheet(int $tenantId, string $date, string $shift, ?string $routeFilter = null): array
+    public function getRunSheet(
+        int $tenantId,
+        string $date,
+        string $shift,
+        ?string $routeFilter = null,
+        ?string $search = null,
+        ?int $page = null,
+        int $perPage = 25
+    ): array
     {
         // Ensure default products exist for this tenant
         $this->productService->ensureDefaultProducts($tenantId);
 
         // 1. Fetch all active customers for this tenant
-        $sql = "SELECT c.*, 
+        $sql = "SELECT c.*, r.name AS route_name,
                     cl.id AS leave_id, cl.reason AS leave_reason,
                     dd.id AS delivery_id, dd.quantity AS recorded_quantity, 
                     dd.status AS recorded_status, dd.notes AS delivery_notes,
                     dd.updated_at AS delivery_updated_at
                 FROM customers c
+                LEFT JOIN routes r ON r.id = c.route_id
                 LEFT JOIN customer_leaves cl ON cl.customer_id = c.id 
                     AND cl.tenant_id = c.tenant_id 
                     AND ? BETWEEN cl.start_date AND cl.end_date
@@ -42,11 +51,25 @@ final class DeliveryService
         $params = [$date, $date, $shift, $tenantId];
 
         if (!empty($routeFilter)) {
-            $sql .= " AND c.route_name = ?";
-            $params[] = $routeFilter;
+            if (is_numeric($routeFilter)) {
+                $sql .= " AND (c.route_id = ? OR r.name = ?)";
+                $params[] = (int)$routeFilter;
+                $params[] = $routeFilter;
+            } else {
+                $sql .= " AND r.name = ?";
+                $params[] = $routeFilter;
+            }
         }
 
-        $sql .= " ORDER BY c.route_name ASC, c.name ASC";
+        if (!empty($search)) {
+            $searchWildcard = '%' . trim($search) . '%';
+            $sql .= " AND (c.name LIKE ? OR c.phone LIKE ? OR c.address LIKE ?)";
+            $params[] = $searchWildcard;
+            $params[] = $searchWildcard;
+            $params[] = $searchWildcard;
+        }
+
+        $sql .= " ORDER BY r.sort_order ASC, r.name ASC, c.name ASC";
 
         $rows = $this->db->fetchAll($sql, $params);
 
@@ -221,18 +244,49 @@ final class DeliveryService
 
         // Available routes for filter dropdown
         $routes = $this->db->fetchAll(
-            "SELECT DISTINCT route_name FROM customers WHERE tenant_id = ? AND route_name IS NOT NULL AND route_name != '' ORDER BY route_name ASC",
+            "SELECT id, name FROM routes WHERE tenant_id = ? AND is_active = 1 ORDER BY sort_order ASC, name ASC",
             [$tenantId]
         );
-        $routeList = array_column($routes, 'route_name');
+        $routeList = array_column($routes, 'name');
+
+        $totalHouses = count($items);
+        $pagination = null;
+        $returnedItems = $items;
+
+        if ($page !== null) {
+            $page = max(1, $page);
+            $perPage = ($perPage > 0) ? $perPage : 25;
+            $totalPages = max(1, (int)ceil($totalHouses / $perPage));
+            $offset = ($page - 1) * $perPage;
+            $returnedItems = array_slice($items, $offset, $perPage);
+
+            $pagination = [
+                'current_page' => $page,
+                'per_page' => $perPage,
+                'total_items' => $totalHouses,
+                'total_pages' => $totalPages,
+                'has_next' => $page < $totalPages,
+                'has_prev' => $page > 1,
+            ];
+        } else {
+            $pagination = [
+                'current_page' => 1,
+                'per_page' => $totalHouses,
+                'total_items' => $totalHouses,
+                'total_pages' => 1,
+                'has_next' => false,
+                'has_prev' => false,
+            ];
+        }
 
         return [
             'date' => $date,
             'shift' => $shift,
-            'items' => $items,
+            'items' => $returnedItems,
             'routes' => $routeList,
+            'route_details' => $routes,
             'stats' => [
-                'total_houses' => count($items),
+                'total_houses' => $totalHouses,
                 'delivered' => $deliveredCount,
                 'skipped' => $skippedCount,
                 'leave' => $leaveCount,
@@ -240,6 +294,7 @@ final class DeliveryService
                 'total_liters' => round($totalLiters, 2),
                 'product_totals' => $productTotals,
             ],
+            'pagination' => $pagination,
             'pending_alert' => $pendingCount > 0 ? "{$pendingCount} houses are still pending verification for this " . ($shift === 'morning' ? 'Morning' : 'Evening') . " shift!" : null,
         ];
     }
@@ -393,9 +448,10 @@ final class DeliveryService
 
         // Return updated row state
         $delivery = $this->db->fetchOne(
-            "SELECT dd.*, c.name AS customer_name, c.route_name, c.milk_types
+            "SELECT dd.*, c.name AS customer_name, r.name AS route_name, c.milk_types
              FROM daily_deliveries dd
              JOIN customers c ON c.id = dd.customer_id
+             JOIN routes r ON r.id = c.route_id
              WHERE dd.tenant_id = ? AND dd.customer_id = ? AND dd.delivery_date = ? AND dd.shift = ?",
             [$tenantId, $customerId, $date, $shift]
         );

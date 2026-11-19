@@ -116,6 +116,12 @@ return function (Router $router): void {
     $router->post('/settings/charges', [SettingsController::class, 'addCharge'], ['tenant']);
     $router->post('/settings/charges/{id}/toggle', [SettingsController::class, 'toggleCharge'], ['tenant']);
     $router->post('/settings/charges/{id}/delete', [SettingsController::class, 'deleteCharge'], ['tenant']);
+    $router->post('/settings/routes', [SettingsController::class, 'addRoute'], ['tenant']);
+    $router->post('/settings/routes/{id}/toggle', [SettingsController::class, 'toggleRoute'], ['tenant']);
+    $router->post('/settings/routes/{id}/delete', [SettingsController::class, 'deleteRoute'], ['tenant']);
+    $router->post('/settings/staff', [SettingsController::class, 'addStaff'], ['tenant']);
+    $router->post('/settings/staff/{id}/toggle', [SettingsController::class, 'toggleStaff'], ['tenant']);
+    $router->post('/settings/staff/{id}/delete', [SettingsController::class, 'deleteStaff'], ['tenant']);
     $router->get('/subscription', [SettingsController::class, 'subscriptionView'], ['tenant']);
     $router->post('/subscription/upgrade', [SettingsController::class, 'upgradeQuota'], ['tenant']);
 

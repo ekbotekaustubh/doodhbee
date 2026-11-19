@@ -38,6 +38,7 @@ class CustomerSubscription {
 
 class Customer {
   final int id;
+  final int? routeId;
   final String name;
   final String phone;
   final String address;
@@ -49,6 +50,7 @@ class Customer {
 
   Customer({
     required this.id,
+    this.routeId,
     required this.name,
     required this.phone,
     required this.address,
@@ -65,6 +67,7 @@ class Customer {
 
     return Customer(
       id: json['id'] ?? 0,
+      routeId: (json['route_id'] as num?)?.toInt(),
       name: json['name'] ?? '',
       phone: json['phone'] ?? '',
       address: json['address'] ?? '',

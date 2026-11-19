@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controllers\Api;
 
+use App\Core\Auth;
 use App\Core\Request;
 use App\Services\ProductService;
 
@@ -44,6 +45,7 @@ final class ProductApiController extends ApiBaseController
 
     public function store(Request $request): void
     {
+        Auth::requireApiTenantAdmin();
         $tenantId = $this->tenantId();
         $name = trim((string)$request->input('name', ''));
         $code = strtolower(trim((string)$request->input('code', '')));
@@ -98,6 +100,7 @@ final class ProductApiController extends ApiBaseController
 
     public function update(Request $request, array $params): void
     {
+        Auth::requireApiTenantAdmin();
         $tenantId = $this->tenantId();
         $id = (int)($params['id'] ?? 0);
 
@@ -146,6 +149,7 @@ final class ProductApiController extends ApiBaseController
 
     public function toggle(Request $request, array $params): void
     {
+        Auth::requireApiTenantAdmin();
         $tenantId = $this->tenantId();
         $id = (int)($params['id'] ?? 0);
 
@@ -170,6 +174,7 @@ final class ProductApiController extends ApiBaseController
 
     public function destroy(Request $request, array $params): void
     {
+        Auth::requireApiTenantAdmin();
         $tenantId = $this->tenantId();
         $id = (int)($params['id'] ?? 0);
 

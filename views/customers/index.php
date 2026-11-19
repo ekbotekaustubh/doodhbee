@@ -84,7 +84,12 @@
             <select name="route" onchange="this.form.submit()" class="w-full sm:w-44 text-xs font-bold py-2 px-3 border border-slate-300 rounded-xl bg-slate-50">
                 <option value="">All Routes</option>
                 <?php foreach ($routes as $r): ?>
-                    <option value="<?= e($r) ?>" <?= $selectedRoute === $r ? 'selected' : '' ?>><?= e($r) ?></option>
+                    <?php 
+                        $rVal = is_array($r) ? ($r['name'] ?? '') : $r;
+                        $rName = is_array($r) ? ($r['name'] ?? '') : $r;
+                        $isSelected = ($selectedRoute === (string)$rVal);
+                    ?>
+                    <option value="<?= e((string)$rVal) ?>" <?= $isSelected ? 'selected' : '' ?>><?= e((string)$rName) ?></option>
                 <?php endforeach; ?>
             </select>
 

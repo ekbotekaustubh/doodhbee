@@ -5,6 +5,7 @@ import '../core/constants/api_constants.dart';
 import 'charges_screen.dart';
 import 'login_screen.dart';
 import 'product_list_screen.dart';
+import 'route_list_screen.dart';
 import 'settings_screen.dart';
 import 'subscription_screen.dart';
 
@@ -360,6 +361,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       child: InkWell(
                         onTap: () => Navigator.push(
                           context,
+                          MaterialPageRoute(builder: (_) => const RouteListScreen()),
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        child: const Padding(
+                          padding: EdgeInsets.all(14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              CircleAvatar(
+                                backgroundColor: Color(0xFFF3E8FF),
+                                foregroundColor: Color(0xFF7E22CE),
+                                radius: 18,
+                                child: Icon(Icons.alt_route, size: 20),
+                              ),
+                              SizedBox(height: 10),
+                              Text('Delivery Routes', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                              SizedBox(height: 2),
+                              Text('Zones & distribution', style: TextStyle(fontSize: 11, color: Colors.black54)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Card(
+                      child: InkWell(
+                        onTap: () => Navigator.push(
+                          context,
                           MaterialPageRoute(builder: (_) => const SettingsScreen()),
                         ),
                         borderRadius: BorderRadius.circular(12),
@@ -384,7 +415,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 10),
+                ],
+              ),
+              const SizedBox(height: 10),
+
+              Row(
+                children: [
                   Expanded(
                     child: Card(
                       child: InkWell(
@@ -417,6 +453,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     ),
                   ),
+                  const SizedBox(width: 10),
+                  const Expanded(child: SizedBox()),
                 ],
               ),
               const SizedBox(height: 24),

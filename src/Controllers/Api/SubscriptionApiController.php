@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controllers\Api;
 
+use App\Core\Auth;
 use App\Core\Request;
 use App\Services\QuotaService;
 
@@ -13,6 +14,7 @@ final class SubscriptionApiController extends ApiBaseController
     public function __construct()
     {
         parent::__construct();
+        Auth::requireApiTenantAdmin();
         $this->quotaService = new QuotaService();
     }
 

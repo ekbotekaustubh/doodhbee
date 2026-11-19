@@ -1,8 +1,13 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../core/api/api_client.dart';
+import '../core/api/auth_service.dart';
+import '../core/constants/api_constants.dart';
 import '../core/sync/sync_engine.dart';
 import '../models/delivery_item.dart';
+import 'login_screen.dart';
 
 class DeliveryScreen extends StatefulWidget {
   const DeliveryScreen({super.key});
@@ -13,20 +18,25 @@ class DeliveryScreen extends StatefulWidget {
 
 class _DeliveryScreenState extends State<DeliveryScreen> {
   final SyncEngine _syncEngine = SyncEngine();
+  final ApiClient _api = ApiClient();
+  final TextEditingController _searchController = TextEditingController();
 
   DateTime _selectedDate = DateTime.now();
   String _selectedShift = DateTime.now().hour >= 14 ? 'evening' : 'morning';
   String? _selectedRoute;
+  Map<String, dynamic>? _currentUser;
 
   List<DeliveryItem> _items = [];
   List<String> _routes = [];
   bool _isLoading = false;
   int _pendingSyncCount = 0;
+  int _currentPage = 1;
+  final int _perPage = 25;
 
   @override
   void initState() {
     super.initState();
-    _loadDeliveries();
+    _initUserAndDeliveries();
 
     _syncEngine.outboxCountStream.listen((count) {
       if (mounted) setState(() => _pendingSyncCount = count);
@@ -35,6 +45,32 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     _syncEngine.connectivityStream.listen((isOnline) {
       if (mounted) setState(() {});
     });
+  }
+
+  Future<void> _initUserAndDeliveries() async {
+    final user = await AuthService().getSavedUser();
+    if (mounted && user != null) {
+      setState(() {
+        _currentUser = user;
+        if (user['assigned_route_name'] != null && user['assigned_route_name'].toString().isNotEmpty) {
+          _selectedRoute = user['assigned_route_name'].toString();
+        }
+      });
+    }
+    await _loadRoutes();
+    await _loadDeliveries();
+  }
+
+  Future<void> _loadRoutes() async {
+    final res = await _api.get(ApiConstants.deliveryRoutes);
+    if (res.success && res.data != null) {
+      final list = (res.data as List).map((m) => m['name']?.toString() ?? '').where((n) => n.isNotEmpty).toList();
+      if (mounted && list.isNotEmpty) {
+        setState(() {
+          _routes = list;
+        });
+      }
+    }
   }
 
   String get _dateStr => DateFormat('yyyy-MM-dd').format(_selectedDate);
@@ -47,14 +83,21 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
         _dateStr,
         _selectedShift,
         route: _selectedRoute,
+        search: _searchController.text.trim(),
       );
 
       final items = rawList.map((m) => DeliveryItem.fromMap(m)).toList();
-      final routesSet = items.map((e) => e.routeName).where((r) => r.isNotEmpty).toSet();
+      if (_routes.isEmpty) {
+        final routesSet = items.map((e) => e.routeName).where((r) => r.isNotEmpty).toSet();
+        _routes = routesSet.toList();
+      }
 
       setState(() {
         _items = items;
-        _routes = routesSet.toList();
+        final totalPages = (_items.length / _perPage).ceil();
+        if (_currentPage > totalPages && totalPages > 0) {
+          _currentPage = totalPages;
+        }
       });
     } catch (_) {
     } finally {
@@ -194,6 +237,35 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     }
   }
 
+  bool get _isDeliveryBoy => _currentUser != null && _currentUser!['role'] == 'delivery';
+
+  Future<void> _confirmLogout() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sign Out'),
+        content: const Text('Are you sure you want to log out of DoodhBee?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Logout', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await AuthService().logout();
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          (route) => false,
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final totalDelivered = _items.where((i) => i.status == 'delivered').length;
@@ -203,7 +275,19 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('📋 Daily Delivery Run-Sheet'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(_isDeliveryBoy && _currentUser?['name'] != null
+                ? '🛵 ${_currentUser!['name']}'
+                : '📋 Daily Delivery Run-Sheet'),
+            if (_isDeliveryBoy && _currentUser?['assigned_route_name'] != null)
+              Text(
+                'Route: ${_currentUser!['assigned_route_name']}',
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.normal),
+              ),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.sync),
@@ -213,6 +297,12 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
               _loadDeliveries();
             },
           ),
+          if (_isDeliveryBoy)
+            IconButton(
+              icon: const Icon(Icons.logout),
+              tooltip: 'Logout',
+              onPressed: _confirmLogout,
+            ),
         ],
       ),
       body: Column(
@@ -265,6 +355,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                       onPressed: () {
                         setState(() {
                           _selectedDate = _selectedDate.subtract(const Duration(days: 1));
+                          _currentPage = 1;
                         });
                         _loadDeliveries();
                       },
@@ -279,7 +370,10 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                             lastDate: DateTime(2030),
                           );
                           if (picked != null) {
-                            setState(() => _selectedDate = picked);
+                            setState(() {
+                              _selectedDate = picked;
+                              _currentPage = 1;
+                            });
                             _loadDeliveries();
                           }
                         },
@@ -295,6 +389,7 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                       onPressed: () {
                         setState(() {
                           _selectedDate = _selectedDate.add(const Duration(days: 1));
+                          _currentPage = 1;
                         });
                         _loadDeliveries();
                       },
@@ -318,7 +413,10 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                         selectedColor: const Color(0xFFFEF3C7),
                         onSelected: (val) {
                           if (val) {
-                            setState(() => _selectedShift = 'morning');
+                            setState(() {
+                              _selectedShift = 'morning';
+                              _currentPage = 1;
+                            });
                             _loadDeliveries();
                           }
                         },
@@ -337,7 +435,10 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                         selectedColor: const Color(0xFFE0E7FF),
                         onSelected: (val) {
                           if (val) {
-                            setState(() => _selectedShift = 'evening');
+                            setState(() {
+                              _selectedShift = 'evening';
+                              _currentPage = 1;
+                            });
                             _loadDeliveries();
                           }
                         },
@@ -358,7 +459,10 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                             selected: _selectedRoute == null,
                             onSelected: (val) {
                               if (val) {
-                                setState(() => _selectedRoute = null);
+                                setState(() {
+                                  _selectedRoute = null;
+                                  _currentPage = 1;
+                                });
                                 _loadDeliveries();
                               }
                             },
@@ -371,7 +475,10 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                               label: Text(r),
                               selected: _selectedRoute == r,
                               onSelected: (val) {
-                                setState(() => _selectedRoute = val ? r : null);
+                                setState(() {
+                                  _selectedRoute = val ? r : null;
+                                  _currentPage = 1;
+                                });
                                 _loadDeliveries();
                               },
                             ),
@@ -381,6 +488,38 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                     ),
                   ),
                 ],
+
+                // Search Input Field
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (val) {
+                      setState(() => _currentPage = 1);
+                      _loadDeliveries();
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Search customer name, phone, address...',
+                      hintStyle: const TextStyle(fontSize: 12),
+                      prefixIcon: const Icon(Icons.search, size: 18),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 16),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => _currentPage = 1);
+                                _loadDeliveries();
+                              },
+                            )
+                          : null,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -392,9 +531,12 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Delivered: $totalDelivered/${_items.length} Houses',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF334155)),
+                Expanded(
+                  child: Text(
+                    'Delivered: $totalDelivered/${_items.length} Houses${_selectedRoute != null ? ' in $_selectedRoute' : ''}',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF334155)),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
                 Text(
                   'Volume: ${totalLiters.toStringAsFixed(1)} Liters',
@@ -413,15 +555,33 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Text('👥', style: TextStyle(fontSize: 40)),
+                            const Text('🔍', style: TextStyle(fontSize: 40)),
                             const SizedBox(height: 8),
-                            const Text('No deliveries scheduled for this shift', style: TextStyle(fontWeight: FontWeight.bold)),
+                            Text(
+                              _searchController.text.isNotEmpty || _selectedRoute != null
+                                  ? 'No matching customers found'
+                                  : 'No deliveries scheduled for this shift',
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
                             const SizedBox(height: 12),
-                            ElevatedButton(
-                              onPressed: _loadDeliveries,
-                              style: ElevatedButton.styleFrom(minimumSize: const Size(120, 36)),
-                              child: const Text('Refresh'),
-                            )
+                            if (_searchController.text.isNotEmpty || _selectedRoute != null)
+                              ElevatedButton(
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() {
+                                    _selectedRoute = null;
+                                    _currentPage = 1;
+                                  });
+                                  _loadDeliveries();
+                                },
+                                child: const Text('Reset Filters'),
+                              )
+                            else
+                              ElevatedButton(
+                                onPressed: _loadDeliveries,
+                                style: ElevatedButton.styleFrom(minimumSize: const Size(120, 36)),
+                                child: const Text('Refresh'),
+                              ),
                           ],
                         ),
                       )
@@ -429,14 +589,54 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                         onRefresh: _loadDeliveries,
                         child: ListView.builder(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          itemCount: _items.length,
+                          itemCount: min(_perPage, _items.length - (_currentPage - 1) * _perPage),
                           itemBuilder: (context, idx) {
-                            final item = _items[idx];
+                            final itemIndex = (_currentPage - 1) * _perPage + idx;
+                            if (itemIndex >= _items.length) return const SizedBox.shrink();
+                            final item = _items[itemIndex];
                             return _buildDeliveryCard(item);
                           },
                         ),
                       ),
           ),
+
+          // Pagination Controls
+          if ((_items.length / _perPage).ceil() > 1)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Page $_currentPage of ${(_items.length / _perPage).ceil()} (${(_currentPage - 1) * _perPage + 1}-${min(_items.length, _currentPage * _perPage)} of ${_items.length})',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF475569)),
+                  ),
+                  Row(
+                    children: [
+                      IconButton.outlined(
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(Icons.chevron_left, size: 20),
+                        onPressed: _currentPage > 1
+                            ? () => setState(() => _currentPage--)
+                            : null,
+                      ),
+                      const SizedBox(width: 6),
+                      IconButton.outlined(
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(Icons.chevron_right, size: 20),
+                        onPressed: _currentPage < (_items.length / _perPage).ceil()
+                            ? () => setState(() => _currentPage++)
+                            : null,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );

@@ -53,6 +53,7 @@ class DatabaseHelper {
     await db.execute('''
       CREATE TABLE customers (
         id INTEGER PRIMARY KEY,
+        route_id INTEGER,
         name TEXT NOT NULL,
         phone TEXT NOT NULL,
         address TEXT,
@@ -112,7 +113,7 @@ class DatabaseHelper {
     await batch.commit(noResult: true);
   }
 
-  Future<List<Map<String, dynamic>>> getLocalDeliveries(String date, String shift, {String? route}) async {
+  Future<List<Map<String, dynamic>>> getLocalDeliveries(String date, String shift, {String? route, String? search}) async {
     final db = await database;
     String where = 'delivery_date = ? AND shift = ?';
     List<dynamic> whereArgs = [date, shift];
@@ -120,6 +121,12 @@ class DatabaseHelper {
     if (route != null && route.isNotEmpty) {
       where += ' AND route_name = ?';
       whereArgs.add(route);
+    }
+
+    if (search != null && search.trim().isNotEmpty) {
+      final term = '%${search.trim()}%';
+      where += ' AND (customer_name LIKE ? OR customer_phone LIKE ? OR address LIKE ?)';
+      whereArgs.addAll([term, term, term]);
     }
 
     return await db.query(

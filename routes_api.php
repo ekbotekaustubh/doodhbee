@@ -11,7 +11,9 @@ use App\Controllers\Api\InvoiceApiController;
 use App\Controllers\Api\LeaveApiController;
 use App\Controllers\Api\PaymentApiController;
 use App\Controllers\Api\ProductApiController;
+use App\Controllers\Api\RouteApiController;
 use App\Controllers\Api\SettingsApiController;
+use App\Controllers\Api\StaffApiController;
 use App\Controllers\Api\SubscriptionApiController;
 use App\Core\Router;
 
@@ -84,6 +86,15 @@ return function (Router $router): void {
     $router->post('/api/products/{id}/toggle', [ProductApiController::class, 'toggle'], ['api.tenant']);
     $router->delete('/api/products/{id}', [ProductApiController::class, 'destroy'], ['api.tenant']);
 
+    // 3b. Delivery Routes Entity
+    $router->get('/api/routes', [RouteApiController::class, 'index'], ['api.tenant']);
+    $router->post('/api/routes', [RouteApiController::class, 'store'], ['api.tenant']);
+    $router->get('/api/routes/{id}', [RouteApiController::class, 'show'], ['api.tenant']);
+    $router->put('/api/routes/{id}', [RouteApiController::class, 'update'], ['api.tenant']);
+    $router->post('/api/routes/{id}', [RouteApiController::class, 'update'], ['api.tenant']);
+    $router->post('/api/routes/{id}/toggle', [RouteApiController::class, 'toggle'], ['api.tenant']);
+    $router->delete('/api/routes/{id}', [RouteApiController::class, 'destroy'], ['api.tenant']);
+
     // 4. Customers
     $router->get('/api/customers', [CustomerApiController::class, 'index'], ['api.tenant']);
     $router->get('/api/customers/routes', [CustomerApiController::class, 'routes'], ['api.tenant']);
@@ -133,6 +144,15 @@ return function (Router $router): void {
     $router->post('/api/settings/charges', [SettingsApiController::class, 'addCharge'], ['api.tenant']);
     $router->post('/api/settings/charges/{id}/toggle', [SettingsApiController::class, 'toggleCharge'], ['api.tenant']);
     $router->delete('/api/settings/charges/{id}', [SettingsApiController::class, 'deleteCharge'], ['api.tenant']);
+
+    // 9b. Staff & Delivery Riders
+    $router->get('/api/staff', [StaffApiController::class, 'index'], ['api.tenant']);
+    $router->post('/api/staff', [StaffApiController::class, 'store'], ['api.tenant']);
+    $router->get('/api/staff/{id}', [StaffApiController::class, 'show'], ['api.tenant']);
+    $router->put('/api/staff/{id}', [StaffApiController::class, 'update'], ['api.tenant']);
+    $router->post('/api/staff/{id}', [StaffApiController::class, 'update'], ['api.tenant']);
+    $router->post('/api/staff/{id}/toggle', [StaffApiController::class, 'toggle'], ['api.tenant']);
+    $router->delete('/api/staff/{id}', [StaffApiController::class, 'destroy'], ['api.tenant']);
 
     // 10. Subscription & Quota
     $router->get('/api/subscription', [SubscriptionApiController::class, 'getSubscription'], ['api.tenant']);

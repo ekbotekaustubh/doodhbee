@@ -14,6 +14,7 @@ final class InvoiceController
 {
     public function index(Request $request): void
     {
+        Auth::requireTenantAdmin();
         $year = (int)$request->get('year', (int)date('Y'));
         $month = (int)$request->get('month', (int)date('m'));
         $status = (string)$request->get('status', '');
@@ -64,6 +65,7 @@ final class InvoiceController
 
     public function generateBatch(Request $request): void
     {
+        Auth::requireTenantAdmin();
         $year = (int)$request->post('year', (int)date('Y'));
         $month = (int)$request->post('month', (int)date('m'));
 
@@ -85,6 +87,7 @@ final class InvoiceController
 
     public function generateSingle(Request $request): void
     {
+        Auth::requireTenantAdmin();
         $customerId = (int)$request->post('customer_id');
         $year = (int)$request->post('year', (int)date('Y'));
         $month = (int)$request->post('month', (int)date('m'));
@@ -109,6 +112,7 @@ final class InvoiceController
 
     public function show(Request $request, array $params): void
     {
+        Auth::requireTenantAdmin();
         $id = (int)($params['id'] ?? 0);
 
         // Fetch invoice details via REST API
@@ -138,6 +142,7 @@ final class InvoiceController
 
     public function printA4(Request $request, array $params): void
     {
+        Auth::requireTenantAdmin();
         $id = (int)($params['id'] ?? 0);
 
         $res = ApiClient::get("/api/invoices/{$id}");
@@ -161,6 +166,7 @@ final class InvoiceController
 
     public function printThermal(Request $request, array $params): void
     {
+        Auth::requireTenantAdmin();
         $id = (int)($params['id'] ?? 0);
         $format = (string)$request->get('format', '80mm');
 
@@ -186,6 +192,7 @@ final class InvoiceController
 
     public function downloadPdf(Request $request, array $params): void
     {
+        Auth::requireTenantAdmin();
         $id = (int)($params['id'] ?? 0);
         $type = (string)$request->get('type', 'a4');
 
@@ -222,6 +229,7 @@ final class InvoiceController
 
     public function recordPayment(Request $request, array $params): void
     {
+        Auth::requireTenantAdmin();
         $invoiceId = (int)($params['id'] ?? 0);
         $amount = (float)$request->post('amount');
         $paymentDate = (string)$request->post('payment_date', date('Y-m-d'));
@@ -249,6 +257,7 @@ final class InvoiceController
 
     public function whatsappSingle(Request $request, array $params): void
     {
+        Auth::requireTenantAdmin();
         $id = (int)($params['id'] ?? 0);
         $res = ApiClient::get("/api/invoices/{$id}/share");
 
@@ -269,6 +278,7 @@ final class InvoiceController
 
     public function whatsappBulkQueue(Request $request): void
     {
+        Auth::requireTenantAdmin();
         $invoiceIds = $request->post('invoice_ids');
         $year = (int)$request->post('year', (int)date('Y'));
         $month = (int)$request->post('month', (int)date('m'));
@@ -294,6 +304,7 @@ final class InvoiceController
 
     public function whatsappRetry(Request $request, array $params): void
     {
+        Auth::requireTenantAdmin();
         $id = (int)($params['id'] ?? 0);
         $year = (int)$request->get('year', (int)date('Y'));
         $month = (int)$request->get('month', (int)date('m'));

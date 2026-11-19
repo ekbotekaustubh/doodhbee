@@ -128,8 +128,20 @@ foreach ($products as $p) {
 
                 <div class="space-y-3">
                     <div>
-                        <label class="block text-xs font-black uppercase text-slate-700 mb-1">Route / Area Name</label>
-                        <input type="text" name="route_name" value="<?= e($customer['route_name'] ?? 'Main Route') ?>" placeholder="e.g. Green Valley Route" class="w-full text-sm font-semibold px-3.5 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500">
+                        <label class="block text-xs font-black uppercase text-slate-700 mb-1">Delivery Route / Zone *</label>
+                        <select name="route_id" required class="w-full text-sm font-semibold px-3.5 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white">
+                            <?php foreach ($routes ?? [] as $r): ?>
+                                <?php 
+                                    $rId = (int)$r['id'];
+                                    $isSelected = isset($customer['route_id']) 
+                                        ? ((int)$customer['route_id'] === $rId) 
+                                        : (($r['is_default'] ?? false) || $r['name'] === ($customer['route_name'] ?? 'Main Route'));
+                                ?>
+                                <option value="<?= $rId ?>" <?= $isSelected ? 'selected' : '' ?>>
+                                    <?= e($r['name']) ?><?= !empty($r['is_default']) ? ' (Default)' : '' ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
                     <div>
                         <label class="block text-xs font-black uppercase text-slate-700 mb-1">Status</label>

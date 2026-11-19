@@ -16,6 +16,15 @@ final class DeliveryController
         $date = (string)$request->get('date', date('Y-m-d'));
         $shift = (string)$request->get('shift', (int)date('H') >= 14 ? 'evening' : 'morning');
         $route = (string)$request->get('route', '');
+        if (empty($route) && Auth::isDeliveryBoy() && !empty(Auth::assignedRouteName())) {
+            $route = (string)Auth::assignedRouteName();
+        }
+        $search = trim((string)$request->get('q', (string)$request->get('search', '')));
+        $page = (int)$request->get('page', 1);
+        $perPage = (int)$request->get('per_page', 25);
+        if ($page <= 0) $page = 1;
+        if ($perPage <= 0) $perPage = 25;
+        if ($perPage > 200) $perPage = 200;
 
         if (!in_array($shift, ['morning', 'evening'], true)) {
             $shift = 'morning';
@@ -26,12 +35,24 @@ final class DeliveryController
             'date' => $date,
             'shift' => $shift,
             'route' => $route,
+            'q' => $search,
+            'page' => $page,
+            'per_page' => $perPage,
         ]);
 
         $runSheet = $res['data'] ?? [
             'items' => [],
-            'stats' => ['total_liters' => 0.0, 'delivered' => 0, 'skipped' => 0, 'leave' => 0, 'pending' => 0, 'product_totals' => []],
+            'stats' => ['total_houses' => 0, 'total_liters' => 0.0, 'delivered' => 0, 'skipped' => 0, 'leave' => 0, 'pending' => 0, 'product_totals' => []],
             'routes' => [],
+            'route_details' => [],
+            'pagination' => [
+                'current_page' => $page,
+                'per_page' => $perPage,
+                'total_items' => 0,
+                'total_pages' => 1,
+                'has_next' => false,
+                'has_prev' => false,
+            ],
             'pending_alert' => null,
         ];
 
@@ -39,9 +60,20 @@ final class DeliveryController
             'date' => $date,
             'shift' => $shift,
             'selectedRoute' => $route,
+            'search' => $search,
+            'page' => $page,
+            'perPage' => $perPage,
             'runSheet' => $runSheet,
+            'pagination' => $runSheet['pagination'] ?? [
+                'current_page' => $page,
+                'per_page' => $perPage,
+                'total_items' => count($runSheet['items'] ?? []),
+                'total_pages' => 1,
+                'has_next' => false,
+                'has_prev' => false,
+            ],
             'success' => Auth::flash('success'),
-            'error' => Auth::flash('error'),
+            'error' => Auth::flash('error') ?: (string)$request->get('error', ''),
         ], 'main');
     }
 
@@ -179,7 +211,8 @@ final class DeliveryController
 
         $count = $apiRes['data']['updated_count'] ?? 0;
         Auth::flash('success', "Quick Action: {$count} pending houses were confirmed as delivered!");
-        Response::redirect(url("/deliveries?date={$date}&shift={$shift}"));
+        $redirectUrl = "/deliveries?date={$date}&shift={$shift}" . (!empty($route) ? '&route=' . urlencode($route) : '');
+        Response::redirect(url($redirectUrl));
     }
 
     public function getStatsJson(Request $request): void

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/api/auth_service.dart';
 import 'customer_list_screen.dart';
 import 'dashboard_screen.dart';
 import 'delivery_screen.dart';
@@ -13,6 +14,24 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
+  bool _isDelivery = false;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkRole();
+  }
+
+  Future<void> _checkRole() async {
+    final user = await AuthService().getSavedUser();
+    if (mounted) {
+      setState(() {
+        _isDelivery = user != null && user['role'] == 'delivery';
+        _isLoading = false;
+      });
+    }
+  }
 
   final List<Widget> _screens = const [
     DeliveryScreen(),
@@ -23,6 +42,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_isDelivery) {
+      return const DeliveryScreen();
+    }
+
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,

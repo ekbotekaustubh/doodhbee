@@ -13,6 +13,7 @@ final class SettingsController
 {
     public function index(Request $request): void
     {
+        Auth::requireTenantAdmin();
         // 1. Fetch settings bundle via REST API
         $settingsRes = ApiClient::get('/api/settings');
         $data = $settingsRes['data'] ?? [];
@@ -29,11 +30,21 @@ final class SettingsController
         $subRes = ApiClient::get('/api/subscription');
         $quota = $subRes['data']['quota'] ?? [];
 
+        // 4. Fetch delivery routes via REST API
+        $routesRes = ApiClient::get('/api/routes');
+        $routes = $routesRes['data'] ?? [];
+
+        // 5. Fetch staff roster via REST API
+        $staffRes = ApiClient::get('/api/staff');
+        $staff = $staffRes['data'] ?? [];
+
         View::render('settings/index', [
             'tenant' => $tenant,
             'settings' => $settings,
             'charges' => $charges,
             'products' => $products,
+            'routes' => $routes,
+            'staff' => $staff,
             'quota' => $quota,
             'success' => Auth::flash('success'),
             'error' => Auth::flash('error'),
@@ -42,6 +53,7 @@ final class SettingsController
 
     public function addProduct(Request $request): void
     {
+        Auth::requireTenantAdmin();
         $name = trim((string)$request->post('name', ''));
         $code = trim((string)$request->post('code', ''));
         $unit = trim((string)$request->post('unit', 'L'));
@@ -66,6 +78,7 @@ final class SettingsController
 
     public function toggleProduct(Request $request, array $params): void
     {
+        Auth::requireTenantAdmin();
         $productId = (int)($params['id'] ?? 0);
 
         // Toggle product via REST API
@@ -82,6 +95,7 @@ final class SettingsController
 
     public function deleteProduct(Request $request, array $params): void
     {
+        Auth::requireTenantAdmin();
         $productId = (int)($params['id'] ?? 0);
 
         // Delete product via REST API
@@ -98,6 +112,7 @@ final class SettingsController
 
     public function updateProfile(Request $request): void
     {
+        Auth::requireTenantAdmin();
         $businessName = trim((string)$request->post('business_name', ''));
         $ownerName = trim((string)$request->post('owner_name', ''));
         $phone = trim((string)$request->post('phone', ''));
@@ -131,6 +146,7 @@ final class SettingsController
 
     public function updateTaxes(Request $request): void
     {
+        Auth::requireTenantAdmin();
         $taxEnabled = (int)$request->post('tax_enabled', 0);
         $taxLabel = trim((string)$request->post('tax_label', 'GST'));
         $taxPercentage = (float)$request->post('tax_percentage', 0.0);
@@ -204,6 +220,7 @@ final class SettingsController
 
     public function addCharge(Request $request): void
     {
+        Auth::requireTenantAdmin();
         $chargeName = trim((string)$request->post('charge_name', ''));
         $chargeType = (string)$request->post('charge_type', 'flat_monthly');
         $amount = (float)$request->post('amount', 0.0);
@@ -231,6 +248,7 @@ final class SettingsController
 
     public function toggleCharge(Request $request, array $params): void
     {
+        Auth::requireTenantAdmin();
         $id = (int)($params['id'] ?? 0);
 
         // Toggle charge status via REST API
@@ -247,6 +265,7 @@ final class SettingsController
 
     public function deleteCharge(Request $request, array $params): void
     {
+        Auth::requireTenantAdmin();
         $id = (int)($params['id'] ?? 0);
 
         // Delete charge via REST API
@@ -261,8 +280,123 @@ final class SettingsController
         Response::redirect(url('/settings'));
     }
 
+    public function addRoute(Request $request): void
+    {
+        Auth::requireTenantAdmin();
+        $name = trim((string)$request->post('name', ''));
+        $description = trim((string)$request->post('description', ''));
+
+        if (empty($name)) {
+            Auth::flash('error', 'Route name is required.');
+            Response::redirect(url('/settings'));
+            return;
+        }
+
+        $res = ApiClient::post('/api/routes', [
+            'name' => $name,
+            'description' => $description,
+        ]);
+
+        if ($res['success']) {
+            Auth::flash('success', "Delivery route '{$name}' created successfully.");
+        } else {
+            Auth::flash('error', $res['error'] ?? 'Failed to create route.');
+        }
+
+        Response::redirect(url('/settings'));
+    }
+
+    public function toggleRoute(Request $request, array $params): void
+    {
+        Auth::requireTenantAdmin();
+        $id = (int)($params['id'] ?? 0);
+        $res = ApiClient::post("/api/routes/{$id}/toggle");
+
+        if ($res['success']) {
+            Auth::flash('success', 'Route status updated successfully.');
+        } else {
+            Auth::flash('error', $res['error'] ?? 'Failed to update route status.');
+        }
+
+        Response::redirect(url('/settings'));
+    }
+
+    public function deleteRoute(Request $request, array $params): void
+    {
+        Auth::requireTenantAdmin();
+        $id = (int)($params['id'] ?? 0);
+        $res = ApiClient::delete("/api/routes/{$id}");
+
+        if ($res['success']) {
+            Auth::flash('success', 'Route deleted successfully.');
+        } else {
+            Auth::flash('error', $res['error'] ?? 'Failed to delete route.');
+        }
+
+        Response::redirect(url('/settings'));
+    }
+
+    public function addStaff(Request $request): void
+    {
+        Auth::requireTenantAdmin();
+        $name = trim((string)$request->post('name', ''));
+        $phone = trim((string)$request->post('phone', ''));
+        $role = trim((string)$request->post('role', 'delivery'));
+        $routeId = $request->post('assigned_route_id') !== null && $request->post('assigned_route_id') !== '' ? (int)$request->post('assigned_route_id') : null;
+        $password = (string)$request->post('password', '');
+        $email = trim((string)$request->post('email', ''));
+
+        $res = ApiClient::post('/api/staff', [
+            'name' => $name,
+            'phone' => $phone,
+            'role' => $role,
+            'assigned_route_id' => $routeId,
+            'password' => $password,
+            'email' => $email,
+        ]);
+
+        if ($res['success']) {
+            Auth::flash('success', "Delivery rider '{$name}' created successfully.");
+        } else {
+            Auth::flash('error', $res['error'] ?? 'Failed to create delivery rider.');
+        }
+
+        Response::redirect(url('/settings#staff-section'));
+    }
+
+    public function toggleStaff(Request $request, array $params): void
+    {
+        Auth::requireTenantAdmin();
+        $id = (int)($params['id'] ?? 0);
+        $res = ApiClient::post("/api/staff/{$id}/toggle");
+
+        if ($res['success']) {
+            Auth::flash('success', 'Staff account status updated successfully.');
+        } else {
+            Auth::flash('error', $res['error'] ?? 'Failed to update staff status.');
+        }
+
+        Response::redirect(url('/settings#staff-section'));
+    }
+
+    public function deleteStaff(Request $request, array $params): void
+    {
+        Auth::requireTenantAdmin();
+        $id = (int)($params['id'] ?? 0);
+        $res = ApiClient::delete("/api/staff/{$id}");
+
+        if ($res['success']) {
+            Auth::flash('success', 'Staff member deleted successfully.');
+        } else {
+            Auth::flash('error', $res['error'] ?? 'Failed to delete staff member.');
+        }
+
+        Response::redirect(url('/settings#staff-section'));
+    }
+
     public function subscriptionView(Request $request): void
     {
+        Auth::requireTenantAdmin();
         // Fetch subscription and quota via REST API
         $subRes = ApiClient::get('/api/subscription');
         $quota = $subRes['data']['quota'] ?? [];
@@ -276,6 +410,7 @@ final class SettingsController
 
     public function upgradeQuota(Request $request): void
     {
+        Auth::requireTenantAdmin();
         $blocks = max(1, (int)$request->post('blocks', 1));
 
         // Upgrade quota via REST API

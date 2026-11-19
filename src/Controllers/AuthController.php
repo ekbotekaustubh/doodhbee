@@ -45,13 +45,19 @@ final class AuthController
         }
 
         $tenant = $res['data']['tenant'];
-        Auth::loginTenant($tenant);
+        $user = $res['data']['user'] ?? null;
+        Auth::loginTenant($tenant, $user);
         if (!empty($res['data']['token'])) {
             $_SESSION['api_token'] = $res['data']['token'];
         }
 
-        Auth::flash('success', "Welcome back, {$tenant['owner_name']}!");
-        Response::redirect(url('/'));
+        $greetingName = $user ? $user['name'] : $tenant['owner_name'];
+        Auth::flash('success', "Welcome back, {$greetingName}!");
+        if (Auth::isDeliveryBoy()) {
+            Response::redirect(url('/deliveries'));
+        } else {
+            Response::redirect(url('/'));
+        }
     }
 
     public function registerView(Request $request): void

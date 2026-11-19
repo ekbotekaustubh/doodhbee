@@ -3,10 +3,16 @@ declare(strict_types=1);
 
 namespace App\Controllers\Api;
 
+use App\Core\Auth;
 use App\Core\Request;
 
 final class PaymentApiController extends ApiBaseController
 {
+    public function __construct()
+    {
+        parent::__construct();
+        Auth::requireApiTenantAdmin();
+    }
     public function invoicePayments(Request $request, array $params): void
     {
         $tenantId = $this->tenantId();
@@ -123,7 +129,13 @@ final class PaymentApiController extends ApiBaseController
         $tenantId = $this->tenantId();
         $customerId = (int)($params['id'] ?? 0);
 
-        $customer = $this->db->fetchOne("SELECT id, name, phone, address, route_name FROM customers WHERE id = ? AND tenant_id = ?", [$customerId, $tenantId]);
+        $customer = $this->db->fetchOne(
+            "SELECT c.id, c.name, c.phone, c.address, c.route_id, r.name AS route_name 
+             FROM customers c 
+             JOIN routes r ON r.id = c.route_id 
+             WHERE c.id = ? AND c.tenant_id = ?",
+            [$customerId, $tenantId]
+        );
         if (!$customer) {
             $this->jsonError('Customer not found.', 404, 'NOT_FOUND');
         }

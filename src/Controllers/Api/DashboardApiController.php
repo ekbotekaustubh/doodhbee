@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controllers\Api;
 
+use App\Core\Auth;
 use App\Core\Request;
 use App\Services\DeliveryService;
 use App\Services\QuotaService;
@@ -15,6 +16,7 @@ final class DashboardApiController extends ApiBaseController
     public function __construct()
     {
         parent::__construct();
+        Auth::requireApiTenantAdmin();
         $this->deliveryService = new DeliveryService();
         $this->quotaService = new QuotaService();
     }
@@ -53,9 +55,10 @@ final class DashboardApiController extends ApiBaseController
         );
 
         $recentDeliveries = $this->db->fetchAll(
-            "SELECT dd.*, c.name AS customer_name, c.route_name
+            "SELECT dd.*, c.name AS customer_name, r.name AS route_name
              FROM daily_deliveries dd
              JOIN customers c ON c.id = dd.customer_id
+             JOIN routes r ON r.id = c.route_id
              WHERE dd.tenant_id = ?
              ORDER BY dd.delivery_date DESC, dd.updated_at DESC
              LIMIT 8",

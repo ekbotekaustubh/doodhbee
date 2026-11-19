@@ -78,7 +78,7 @@ function callApi(string $method, string $path, array $data = [], ?string $bearer
 
     $json = json_decode($output, true);
     if (!is_array($json)) {
-        throw new \Exception("Invalid JSON response from {$method} {$path}: " . substr($output, 0, 200));
+        throw new \Exception("Invalid JSON response (len " . strlen($output) . ", json_err: " . json_last_error_msg() . ") from {$method} {$path}: " . $output);
     }
 
     return [
@@ -188,6 +188,44 @@ runApiTest("API Products: Catalog Listing, Creation & Toggle", function() use (&
     if ($resToggle['status'] !== 200 || $resToggle['body']['data']['is_active'] !== 0) {
         throw new \Exception("Product toggle failed");
     }
+}, $passed, $failed);
+
+// ==========================================
+// TEST 4b: Delivery Route Management (CRUD & Scoping)
+// ==========================================
+$createdRouteId = 0;
+runApiTest("API Routes: Listing, Creation, Toggle & Main Route Guard", function() use (&$tenantToken, &$createdRouteId) {
+    // 1. List routes - must have at least 'Main Route'
+    $resList = callApi('GET', '/api/routes', [], $tenantToken);
+    if ($resList['status'] !== 200 || !is_array($resList['body']['data'])) {
+        throw new \Exception("Failed to list routes: " . json_encode($resList));
+    }
+    $names = array_column($resList['body']['data'], 'name');
+    if (!in_array('Main Route', $names, true)) {
+        throw new \Exception("Default 'Main Route' not found in routes list");
+    }
+
+    // 2. Create custom route
+    $routeName = 'API Test Route ' . uniqid();
+    $resCreate = callApi('POST', '/api/routes', [
+        'name' => $routeName,
+        'description' => 'Route created via API automated test',
+        'sort_order' => 5
+    ], $tenantToken);
+
+    if ($resCreate['status'] !== 201 || empty($resCreate['body']['data']['id'])) {
+        throw new \Exception("Failed to create route via API: " . json_encode($resCreate));
+    }
+    $createdRouteId = (int)$resCreate['body']['data']['id'];
+
+    // 3. Toggle route
+    $resToggle = callApi('POST', "/api/routes/{$createdRouteId}/toggle", [], $tenantToken);
+    if ($resToggle['status'] !== 200 || $resToggle['body']['data']['is_active'] !== false) {
+        throw new \Exception("Route toggle failed: " . json_encode($resToggle));
+    }
+
+    // Toggle back to active
+    callApi('POST', "/api/routes/{$createdRouteId}/toggle", [], $tenantToken);
 }, $passed, $failed);
 
 // ==========================================
@@ -302,6 +340,22 @@ runApiTest("API Deliveries: Run-Sheet Fetching & Zero-Charge Toggle", function()
 
     if ($resDeliver['status'] !== 200 || (float)$resDeliver['body']['data']['delivery']['quantity'] <= 0.00) {
         throw new \Exception("Failed to mark delivery as delivered");
+    }
+
+    // 4. Test Runsheet Search Filter
+    $resSearch = callApi('GET', '/api/deliveries', ['date' => $today, 'shift' => 'morning', 'q' => 'NonExistentXYZ999'], $tenantToken);
+    if ($resSearch['status'] !== 200 || count($resSearch['body']['data']['items']) !== 0) {
+        throw new \Exception("Runsheet search failed: Expected 0 items for non-existent query");
+    }
+
+    // 5. Test Runsheet Pagination & Route Scoping
+    $resPaged = callApi('GET', '/api/deliveries', ['date' => $today, 'shift' => 'morning', 'page' => 1, 'per_page' => 2], $tenantToken);
+    if ($resPaged['status'] !== 200 || !isset($resPaged['body']['data']['pagination'])) {
+        throw new \Exception("Runsheet pagination failed: pagination metadata missing");
+    }
+    $pag = $resPaged['body']['data']['pagination'];
+    if ($pag['current_page'] !== 1 || $pag['per_page'] !== 2 || count($resPaged['body']['data']['items']) > 2) {
+        throw new \Exception("Runsheet pagination failed: items count exceeds per_page limit");
     }
 }, $passed, $failed);
 
@@ -721,12 +775,105 @@ runApiTest('API Security Hardening: CSRF Guard, Auth Rate Limiting & Sensitive F
     }
 }, $passed, $failed);
 
+// TEST 18: Delivery Rider Login & Role-Based Access Control (RBAC)
+runApiTest("Delivery Rider Login & RBAC Enforcement (/api/deliveries vs /api/invoices)", function() use ($db, $tenantToken) {
+    // 1. Rider authentication with phone and password
+    $riderPhone = '9876500001'; // Raju Rider
+    $riderPass = 'rider123';
+
+    $loginRes = callApi('POST', '/api/auth/login', [
+        'login' => $riderPhone,
+        'password' => $riderPass,
+        'device_name' => 'Automated Rider Test Device',
+    ]);
+
+    if ($loginRes['status'] !== 200 || empty($loginRes['body']['data']['token'])) {
+        throw new \Exception("Rider login failed: " . ($loginRes['body']['error'] ?? 'No token returned'));
+    }
+
+    $riderToken = $loginRes['body']['data']['token'];
+    $riderUser = $loginRes['body']['data']['user'] ?? [];
+    if (($riderUser['role'] ?? '') !== 'delivery') {
+        throw new \Exception("Expected rider role 'delivery', got " . ($riderUser['role'] ?? 'none'));
+    }
+    if (!str_contains($riderUser['name'] ?? '', 'Raju Rider')) {
+        throw new \Exception("Expected rider name containing 'Raju Rider', got " . ($riderUser['name'] ?? 'none'));
+    }
+
+    // 2. Rider can access delivery runsheet and gets auto-routed
+    $sheetRes = callApi('GET', '/api/deliveries', ['date' => date('Y-m-d'), 'shift' => 'morning'], $riderToken);
+    if ($sheetRes['status'] !== 200 || !isset($sheetRes['body']['data']['items'])) {
+        throw new \Exception("Rider failed to fetch delivery runsheet: " . ($sheetRes['body']['error'] ?? ''));
+    }
+    // Verify auto-routing to Green Valley Route
+    foreach ($sheetRes['body']['data']['items'] as $item) {
+        if ($item['route_name'] !== 'Green Valley Route') {
+            throw new \Exception("Expected auto-filtered route 'Green Valley Route', found '{$item['route_name']}'");
+        }
+    }
+
+    // 3. RBAC Barrier: Rider CANNOT access sensitive admin/financial endpoints (Expect 403 FORBIDDEN_ROLE)
+    $blockedEndpoints = [
+        ['GET', '/api/invoices', []],
+        ['GET', '/api/settings', []],
+        ['GET', '/api/staff', []],
+        ['POST', '/api/products', ['name' => 'Hack Milk', 'code' => 'hack', 'default_rate' => 10]],
+        ['POST', '/api/customers', ['name' => 'Hack Customer', 'phone' => '9999999999']],
+        ['POST', '/api/subscription/upgrade', ['blocks' => 1]],
+        ['GET', '/api/dashboard/stats', []],
+    ];
+
+    foreach ($blockedEndpoints as [$method, $uri, $payload]) {
+        $res = callApi($method, $uri, $payload, $riderToken);
+        if ($res['status'] !== 403) {
+            throw new \Exception("RBAC breach! Rider should be blocked with 403 on {$method} {$uri}, got {$res['status']}");
+        }
+        if (($res['body']['code'] ?? '') !== 'FORBIDDEN_ROLE') {
+            throw new \Exception("Expected error code FORBIDDEN_ROLE on {$method} {$uri}, got " . ($res['body']['code'] ?? ''));
+        }
+    }
+
+    // 4. Tenant Admin CAN manage staff via /api/staff
+    $staffListRes = callApi('GET', '/api/staff', [], $tenantToken);
+    if ($staffListRes['status'] !== 200 || !is_array($staffListRes['body']['data'])) {
+        throw new \Exception("Admin failed to list staff members: " . ($staffListRes['body']['error'] ?? ''));
+    }
+
+    // Create staff via API
+    $createStaffRes = callApi('POST', '/api/staff', [
+        'name' => 'API Test Rider',
+        'phone' => '9876588888',
+        'password' => 'apirider123',
+        'role' => 'delivery',
+    ], $tenantToken);
+
+    if ($createStaffRes['status'] !== 201) {
+        throw new \Exception("Admin failed to create staff member: " . ($createStaffRes['body']['error'] ?? ''));
+    }
+    $createdStaffId = (int)$createStaffRes['body']['data']['id'];
+
+    // Toggle staff via API
+    $toggleRes = callApi('POST', "/api/staff/{$createdStaffId}/toggle", [], $tenantToken);
+    if ($toggleRes['status'] !== 200 || $toggleRes['body']['data']['is_active'] !== 0) {
+        throw new \Exception("Admin failed to toggle staff status: " . ($toggleRes['body']['error'] ?? ''));
+    }
+
+    // Delete staff via API
+    $deleteRes = callApi('DELETE', "/api/staff/{$createdStaffId}", [], $tenantToken);
+    if ($deleteRes['status'] !== 200) {
+        throw new \Exception("Admin failed to delete staff member: " . ($deleteRes['body']['error'] ?? ''));
+    }
+}, $passed, $failed);
+
 // Clean up test customer and test product
 if ($newCustomerId > 0) {
     $db->execute("DELETE FROM customers WHERE id = ?", [$newCustomerId]);
 }
 if ($createdProductId > 0) {
     $db->execute("DELETE FROM products WHERE id = ?", [$createdProductId]);
+}
+if ($createdRouteId > 0) {
+    $db->execute("DELETE FROM routes WHERE id = ?", [$createdRouteId]);
 }
 
 echo "\n========================================================\n";

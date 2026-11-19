@@ -3,10 +3,16 @@ declare(strict_types=1);
 
 namespace App\Controllers\Api;
 
+use App\Core\Auth;
 use App\Core\Request;
 
 final class SettingsApiController extends ApiBaseController
 {
+    public function __construct()
+    {
+        parent::__construct();
+        Auth::requireApiTenantAdmin();
+    }
     public function getSettings(Request $request): void
     {
         $tenantId = $this->tenantId();

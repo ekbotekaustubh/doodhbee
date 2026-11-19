@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controllers\Api;
 
+use App\Core\Auth;
 use App\Core\Request;
 use App\Services\BillingService;
 use App\Services\WhatsAppService;
@@ -21,15 +22,17 @@ final class InvoiceApiController extends ApiBaseController
 
     public function index(Request $request): void
     {
+        Auth::requireApiTenantAdmin();
         $tenantId = $this->tenantId();
         $month = (int)$request->get('month', date('n'));
         $year = (int)$request->get('year', date('Y'));
         $status = trim((string)$request->get('status', ''));
         $customerId = (int)$request->get('customer_id', 0);
 
-        $sql = "SELECT i.*, c.name as customer_name, c.phone as customer_phone, c.route_name
+        $sql = "SELECT i.*, c.name as customer_name, c.phone as customer_phone, r.name as route_name
                 FROM invoices i
                 JOIN customers c ON c.id = i.customer_id
+                JOIN routes r ON r.id = c.route_id
                 WHERE i.tenant_id = ?";
         $params = [$tenantId];
 
@@ -53,7 +56,7 @@ final class InvoiceApiController extends ApiBaseController
             $params[] = $customerId;
         }
 
-        $sql .= " ORDER BY i.billing_year DESC, i.billing_month DESC, c.route_name ASC, c.name ASC";
+        $sql .= " ORDER BY i.billing_year DESC, i.billing_month DESC, r.name ASC, c.name ASC";
         $invoices = $this->db->fetchAll($sql, $params);
 
         foreach ($invoices as &$inv) {
@@ -78,13 +81,15 @@ final class InvoiceApiController extends ApiBaseController
 
     public function show(Request $request, array $params): void
     {
+        Auth::requireApiTenantAdmin();
         $tenantId = $this->tenantId();
         $id = (int)($params['id'] ?? 0);
 
         $invoice = $this->db->fetchOne(
-            "SELECT i.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address, c.route_name
+            "SELECT i.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address, r.name as route_name
              FROM invoices i
              JOIN customers c ON c.id = i.customer_id
+             JOIN routes r ON r.id = c.route_id
              WHERE i.id = ? AND i.tenant_id = ?",
             [$id, $tenantId]
         );
@@ -125,6 +130,7 @@ final class InvoiceApiController extends ApiBaseController
 
     public function generateBatch(Request $request): void
     {
+        Auth::requireApiTenantAdmin();
         $tenantId = $this->tenantId();
         $month = (int)$request->input('month', date('n'));
         $year = (int)$request->input('year', date('Y'));
@@ -140,6 +146,7 @@ final class InvoiceApiController extends ApiBaseController
 
     public function generateSingle(Request $request): void
     {
+        Auth::requireApiTenantAdmin();
         $tenantId = $this->tenantId();
         $customerId = (int)$request->input('customer_id', 0);
         $month = (int)$request->input('month', date('n'));
@@ -174,6 +181,7 @@ final class InvoiceApiController extends ApiBaseController
 
     public function share(Request $request, array $params): void
     {
+        Auth::requireApiTenantAdmin();
         $tenantId = $this->tenantId();
         $id = (int)($params['id'] ?? 0);
 
@@ -187,6 +195,7 @@ final class InvoiceApiController extends ApiBaseController
 
     public function queueWhatsApp(Request $request): void
     {
+        Auth::requireApiTenantAdmin();
         $tenantId = $this->tenantId();
         $invoiceIds = $request->post('invoice_ids');
 
@@ -208,6 +217,7 @@ final class InvoiceApiController extends ApiBaseController
 
     public function queueStats(Request $request): void
     {
+        Auth::requireApiTenantAdmin();
         $tenantId = $this->tenantId();
         $stats = $this->whatsAppService->getQueueStats($tenantId);
         $this->jsonSuccess($stats);
@@ -215,6 +225,7 @@ final class InvoiceApiController extends ApiBaseController
 
     public function retryWhatsApp(Request $request, array $params): void
     {
+        Auth::requireApiTenantAdmin();
         $tenantId = $this->tenantId();
         $id = (int)($params['id'] ?? 0);
 
@@ -232,9 +243,10 @@ final class InvoiceApiController extends ApiBaseController
         $token = (string)$request->get('token', '');
 
         $invoice = $this->db->fetchOne(
-            "SELECT i.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address, c.route_name
+            "SELECT i.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address, r.name as route_name
              FROM invoices i
              JOIN customers c ON c.id = i.customer_id
+             JOIN routes r ON r.id = c.route_id
              WHERE i.id = ?",
             [$id]
         );

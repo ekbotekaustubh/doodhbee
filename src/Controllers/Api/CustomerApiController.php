@@ -3,20 +3,24 @@ declare(strict_types=1);
 
 namespace App\Controllers\Api;
 
+use App\Core\Auth;
 use App\Core\Request;
 use App\Services\ProductService;
 use App\Services\QuotaService;
+use App\Services\RouteService;
 
 final class CustomerApiController extends ApiBaseController
 {
     private QuotaService $quotaService;
     private ProductService $productService;
+    private RouteService $routeService;
 
     public function __construct()
     {
         parent::__construct();
         $this->quotaService = new QuotaService();
         $this->productService = new ProductService();
+        $this->routeService = new RouteService();
     }
 
     public function index(Request $request): void
@@ -24,10 +28,14 @@ final class CustomerApiController extends ApiBaseController
         $tenantId = $this->tenantId();
         $search = trim((string)$request->get('q', ''));
         $route = trim((string)$request->get('route', ''));
+        $routeId = (int)$request->get('route_id', 0);
         $status = trim((string)$request->get('status', ''));
         $milkType = trim((string)$request->get('milk_type', ''));
 
-        $sql = "SELECT c.* FROM customers c WHERE c.tenant_id = ?";
+        $sql = "SELECT c.*, r.name AS route_name 
+                FROM customers c 
+                LEFT JOIN routes r ON r.id = c.route_id 
+                WHERE c.tenant_id = ?";
         $params = [$tenantId];
 
         if (!empty($search)) {
@@ -37,9 +45,18 @@ final class CustomerApiController extends ApiBaseController
             $params[] = "%{$search}%";
         }
 
-        if (!empty($route)) {
-            $sql .= " AND c.route_name = ?";
-            $params[] = $route;
+        if ($routeId > 0) {
+            $sql .= " AND c.route_id = ?";
+            $params[] = $routeId;
+        } elseif (!empty($route)) {
+            if (is_numeric($route)) {
+                $sql .= " AND (c.route_id = ? OR r.name = ?)";
+                $params[] = (int)$route;
+                $params[] = $route;
+            } else {
+                $sql .= " AND r.name = ?";
+                $params[] = $route;
+            }
         }
 
         if (!empty($status)) {
@@ -57,7 +74,7 @@ final class CustomerApiController extends ApiBaseController
             }
         }
 
-        $sql .= " ORDER BY c.route_name ASC, c.name ASC";
+        $sql .= " ORDER BY r.name ASC, c.name ASC";
         $customers = $this->db->fetchAll($sql, $params);
 
         // Fetch subscriptions for all customers
@@ -106,7 +123,10 @@ final class CustomerApiController extends ApiBaseController
         $id = (int)($params['id'] ?? 0);
 
         $customer = $this->db->fetchOne(
-            "SELECT * FROM customers WHERE id = ? AND tenant_id = ?",
+            "SELECT c.*, r.name AS route_name 
+             FROM customers c 
+             LEFT JOIN routes r ON r.id = c.route_id 
+             WHERE c.id = ? AND c.tenant_id = ?",
             [$id, $tenantId]
         );
 
@@ -147,14 +167,37 @@ final class CustomerApiController extends ApiBaseController
 
     public function store(Request $request): void
     {
+        Auth::requireApiTenantAdmin();
         $tenantId = $this->tenantId();
         $name = trim((string)$request->input('name', ''));
         $phone = trim((string)$request->input('phone', ''));
         $address = trim((string)$request->input('address', ''));
-        $routeName = trim((string)$request->input('route_name', 'Main Route'));
+        $routeId = (int)$request->input('route_id', 0);
+        $routeName = trim((string)$request->input('route_name', ''));
         $status = strtolower(trim((string)$request->input('status', 'active')));
         if (!in_array($status, ['active', 'inactive'], true)) {
             $status = 'active';
+        }
+
+        if ($routeId <= 0) {
+            if (!empty($routeName)) {
+                $existingRoute = $this->db->fetchOne("SELECT id FROM routes WHERE tenant_id = ? AND name = ?", [$tenantId, $routeName]);
+                if ($existingRoute) {
+                    $routeId = (int)$existingRoute['id'];
+                } else {
+                    $newR = $this->routeService->createRoute($tenantId, $routeName);
+                    $routeId = (int)$newR['id'];
+                }
+            } else {
+                $mainRoute = $this->routeService->ensureDefaultRoute($tenantId);
+                $routeId = (int)$mainRoute['id'];
+            }
+        } else {
+            $rCheck = $this->db->fetchOne("SELECT id FROM routes WHERE id = ? AND tenant_id = ?", [$routeId, $tenantId]);
+            if (!$rCheck) {
+                $mainRoute = $this->routeService->ensureDefaultRoute($tenantId);
+                $routeId = (int)$mainRoute['id'];
+            }
         }
 
         $errors = $this->validate([
@@ -220,17 +263,23 @@ final class CustomerApiController extends ApiBaseController
         }
 
         $newCustomerId = 0;
-        $this->db->transaction(function () use ($tenantId, $name, $phone, $address, $routeName, $status, $subsList, &$newCustomerId) {
+        $this->db->transaction(function () use ($tenantId, $routeId, $name, $phone, $address, $status, $subsList, &$newCustomerId) {
             $this->db->execute(
-                "INSERT INTO customers (tenant_id, name, phone, address, route_name, milk_types, status)
+                "INSERT INTO customers (tenant_id, route_id, name, phone, address, milk_types, status)
                  VALUES (?, ?, ?, ?, ?, 'cow', ?)",
-                [$tenantId, $name, $phone, $address, empty($routeName) ? 'Main Route' : $routeName, $status]
+                [$tenantId, $routeId, $name, $phone, $address, $status]
             );
             $newCustomerId = (int)$this->db->lastInsertId();
             $this->productService->saveCustomerSubscriptions($tenantId, $newCustomerId, $subsList);
         });
 
-        $created = $this->db->fetchOne("SELECT * FROM customers WHERE id = ? AND tenant_id = ?", [$newCustomerId, $tenantId]);
+        $created = $this->db->fetchOne(
+            "SELECT c.*, r.name AS route_name 
+             FROM customers c 
+             LEFT JOIN routes r ON r.id = c.route_id 
+             WHERE c.id = ? AND c.tenant_id = ?",
+            [$newCustomerId, $tenantId]
+        );
         $created['subscriptions'] = $subsList;
 
         $this->jsonSuccess($created, 'Customer created successfully', 201);
@@ -238,11 +287,15 @@ final class CustomerApiController extends ApiBaseController
 
     public function update(Request $request, array $params): void
     {
+        Auth::requireApiTenantAdmin();
         $tenantId = $this->tenantId();
         $id = (int)($params['id'] ?? 0);
 
         $customer = $this->db->fetchOne(
-            "SELECT * FROM customers WHERE id = ? AND tenant_id = ?",
+            "SELECT c.*, r.name AS route_name 
+             FROM customers c 
+             LEFT JOIN routes r ON r.id = c.route_id 
+             WHERE c.id = ? AND c.tenant_id = ?",
             [$id, $tenantId]
         );
 
@@ -253,10 +306,34 @@ final class CustomerApiController extends ApiBaseController
         $name = trim((string)$request->input('name', $customer['name']));
         $phone = trim((string)$request->input('phone', $customer['phone']));
         $address = trim((string)$request->input('address', $customer['address']));
-        $routeName = trim((string)$request->input('route_name', $customer['route_name']));
+        $routeId = (int)$request->input('route_id', 0);
+        $routeName = trim((string)$request->input('route_name', ''));
         $status = strtolower(trim((string)$request->input('status', $customer['status'])));
         if (!in_array($status, ['active', 'inactive'], true)) {
             $status = 'active';
+        }
+
+        if ($routeId <= 0) {
+            if (!empty($routeName)) {
+                $existingRoute = $this->db->fetchOne("SELECT id FROM routes WHERE tenant_id = ? AND name = ?", [$tenantId, $routeName]);
+                if ($existingRoute) {
+                    $routeId = (int)$existingRoute['id'];
+                } else {
+                    $newR = $this->routeService->createRoute($tenantId, $routeName);
+                    $routeId = (int)$newR['id'];
+                }
+            } else {
+                $routeId = (int)($customer['route_id'] ?? 0);
+                if ($routeId <= 0) {
+                    $mainRoute = $this->routeService->ensureDefaultRoute($tenantId);
+                    $routeId = (int)$mainRoute['id'];
+                }
+            }
+        } else {
+            $rCheck = $this->db->fetchOne("SELECT id FROM routes WHERE id = ? AND tenant_id = ?", [$routeId, $tenantId]);
+            if (!$rCheck) {
+                $routeId = (int)($customer['route_id'] ?? 0);
+            }
         }
 
         $errors = $this->validate([
@@ -284,12 +361,12 @@ final class CustomerApiController extends ApiBaseController
 
         $subsInput = $request->input('subscriptions', null);
 
-        $this->db->transaction(function () use ($tenantId, $id, $name, $phone, $address, $routeName, $status, $subsInput) {
+        $this->db->transaction(function () use ($tenantId, $id, $routeId, $name, $phone, $address, $status, $subsInput) {
             $this->db->execute(
                 "UPDATE customers 
-                 SET name = ?, phone = ?, address = ?, route_name = ?, status = ?
+                 SET route_id = ?, name = ?, phone = ?, address = ?, status = ?
                  WHERE id = ? AND tenant_id = ?",
-                [$name, $phone, $address, empty($routeName) ? 'Main Route' : $routeName, $status, $id, $tenantId]
+                [$routeId, $name, $phone, $address, $status, $id, $tenantId]
             );
 
             if ($subsInput !== null && is_array($subsInput)) {
@@ -317,7 +394,13 @@ final class CustomerApiController extends ApiBaseController
             }
         });
 
-        $updated = $this->db->fetchOne("SELECT * FROM customers WHERE id = ? AND tenant_id = ?", [$id, $tenantId]);
+        $updated = $this->db->fetchOne(
+            "SELECT c.*, r.name AS route_name 
+             FROM customers c 
+             LEFT JOIN routes r ON r.id = c.route_id 
+             WHERE c.id = ? AND c.tenant_id = ?",
+            [$id, $tenantId]
+        );
         $updated['subscriptions'] = $this->db->fetchAll("SELECT * FROM customer_subscriptions WHERE customer_id = ? AND tenant_id = ?", [$id, $tenantId]);
 
         $this->jsonSuccess($updated, 'Customer updated successfully');
@@ -325,11 +408,15 @@ final class CustomerApiController extends ApiBaseController
 
     public function toggleStatus(Request $request, array $params): void
     {
+        Auth::requireApiTenantAdmin();
         $tenantId = $this->tenantId();
         $id = (int)($params['id'] ?? 0);
 
         $customer = $this->db->fetchOne(
-            "SELECT * FROM customers WHERE id = ? AND tenant_id = ?",
+            "SELECT c.*, r.name AS route_name 
+             FROM customers c 
+             LEFT JOIN routes r ON r.id = c.route_id 
+             WHERE c.id = ? AND c.tenant_id = ?",
             [$id, $tenantId]
         );
 
@@ -356,12 +443,8 @@ final class CustomerApiController extends ApiBaseController
     public function routes(Request $request): void
     {
         $tenantId = $this->tenantId();
-        $routes = $this->db->fetchAll(
-            "SELECT DISTINCT route_name FROM customers WHERE tenant_id = ? AND route_name IS NOT NULL AND route_name != '' ORDER BY route_name ASC",
-            [$tenantId]
-        );
-
-        $list = array_column($routes, 'route_name');
+        $routes = $this->routeService->getTenantRoutes($tenantId, true);
+        $list = array_column($routes, 'name');
         $this->jsonSuccess($list);
     }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:doodhbee_mobile/models/delivery_item.dart';
 import 'package:doodhbee_mobile/models/customer.dart';
+import 'package:doodhbee_mobile/models/delivery_route.dart';
 import 'package:doodhbee_mobile/models/invoice.dart';
 import 'package:doodhbee_mobile/models/product.dart';
 import 'package:doodhbee_mobile/models/additional_charge.dart';
@@ -70,9 +71,10 @@ void main() {
   });
 
   group('Customer Model Tests', () {
-    test('Deserializes Customer with product subscriptions', () {
+    test('Deserializes Customer with product subscriptions and routeId', () {
       final json = {
         'id': 1,
+        'route_id': 5,
         'name': 'Rahul Verma',
         'phone': '9876512345',
         'address': 'B-12 Anand Vihar',
@@ -98,11 +100,58 @@ void main() {
 
       final customer = Customer.fromJson(json);
       expect(customer.id, 1);
+      expect(customer.routeId, 5);
+      expect(customer.routeName, 'Route 1');
       expect(customer.name, 'Rahul Verma');
       expect(customer.subscriptions.length, 2);
       expect(customer.subscriptions[0].productName, 'Cow Milk');
       expect(customer.subscriptions[0].defaultQuantity, 2.0);
       expect(customer.subscriptions[1].customRate, isNull);
+    });
+  });
+
+  group('DeliveryRoute Model Tests', () {
+    test('Deserializes DeliveryRoute and flags default route correctly', () {
+      final json = {
+        'id': 1,
+        'tenant_id': 1,
+        'name': 'Main Route',
+        'description': 'Default primary delivery route',
+        'sort_order': 1,
+        'is_active': 1,
+        'customer_count': 12,
+        'active_customer_count': 10,
+        'is_default': true,
+      };
+
+      final route = DeliveryRoute.fromJson(json);
+      expect(route.id, 1);
+      expect(route.name, 'Main Route');
+      expect(route.isDefault, true);
+      expect(route.isActive, true);
+      expect(route.customerCount, 12);
+      expect(route.activeCustomerCount, 10);
+    });
+
+    test('Custom non-default DeliveryRoute', () {
+      final json = {
+        'id': 8,
+        'tenant_id': 1,
+        'name': 'Sector 4 Express',
+        'description': 'Towers 1-6 morning route',
+        'sort_order': 2,
+        'is_active': 0,
+        'customer_count': 3,
+        'active_customer_count': 3,
+        'is_default': false,
+      };
+
+      final route = DeliveryRoute.fromJson(json);
+      expect(route.id, 8);
+      expect(route.name, 'Sector 4 Express');
+      expect(route.isDefault, false);
+      expect(route.isActive, false);
+      expect(route.customerCount, 3);
     });
   });
 
