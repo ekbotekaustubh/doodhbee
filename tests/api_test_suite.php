@@ -490,6 +490,100 @@ runApiTest("API Subscription: Plan Capacity Upgrade", function() use (&$tenantTo
 }, $passed, $failed);
 
 // ==========================================
+// TEST 11b: Approach 1 - Offline Payment & SuperAdmin Verification
+// ==========================================
+runApiTest("API Subscription: Offline Payment UTR Submission & SuperAdmin Approval Flow", function() use (&$tenantToken, &$adminToken) {
+    // 1. Tenant verifies receiving bank details in subscription API
+    $resSub = callApi('GET', '/api/subscription', [], $tenantToken);
+    if ($resSub['status'] !== 200 || empty($resSub['body']['data']['bank_details']['upi_id'])) {
+        throw new \Exception("Bank details missing from subscription response");
+    }
+    $initialMax = (int)$resSub['body']['data']['quota']['max_allowed'];
+
+    // 2. Validation: submitting without UTR should fail with 422
+    $resFail = callApi('POST', '/api/subscription/request-upgrade', ['blocks' => 1, 'utr_number' => ''], $tenantToken);
+    if ($resFail['status'] !== 422) {
+        throw new \Exception("Expected 422 for missing UTR, got {$resFail['status']}");
+    }
+
+    // 3. Tenant submits offline payment request (2 blocks = +200 customer capacity)
+    $testUtr = 'UTR' . time() . 'TEST';
+    $resReq = callApi('POST', '/api/subscription/request-upgrade', [
+        'blocks' => 2,
+        'utr_number' => $testUtr,
+        'payment_method' => 'upi',
+        'notes' => 'Test PhonePe payment'
+    ], $tenantToken);
+
+    if ($resReq['status'] !== 201 || empty($resReq['body']['data']['id'])) {
+        throw new \Exception("Failed to submit payment request: " . json_encode($resReq));
+    }
+    $reqId = (int)$resReq['body']['data']['id'];
+    if ($resReq['body']['data']['status'] !== 'pending') {
+        throw new \Exception("Expected request status 'pending', got " . $resReq['body']['data']['status']);
+    }
+
+    // 4. Duplicate pending UTR submission should be rejected
+    $resDup = callApi('POST', '/api/subscription/request-upgrade', [
+        'blocks' => 2,
+        'utr_number' => $testUtr
+    ], $tenantToken);
+    if ($resDup['status'] !== 422) {
+        throw new \Exception("Duplicate UTR submission should be rejected with 422");
+    }
+
+    // 5. Super Admin lists pending requests and finds our request
+    $resAdminList = callApi('GET', '/api/admin/subscription-requests', ['status' => 'pending'], $adminToken);
+    if ($resAdminList['status'] !== 200) {
+        throw new \Exception("SuperAdmin failed to list subscription requests");
+    }
+    $found = false;
+    foreach ($resAdminList['body']['data'] as $r) {
+        if ((int)$r['id'] === $reqId && $r['utr_number'] === $testUtr) {
+            $found = true;
+            break;
+        }
+    }
+    if (!$found) {
+        throw new \Exception("Pending request not found in SuperAdmin request queue");
+    }
+
+    // 6. Test Rejection flow on a dummy request
+    $rejectUtr = 'REJECT' . time();
+    $resReq2 = callApi('POST', '/api/subscription/request-upgrade', [
+        'blocks' => 1,
+        'utr_number' => $rejectUtr,
+    ], $tenantToken);
+    $rejectId = (int)$resReq2['body']['data']['id'];
+
+    $resReject = callApi('POST', "/api/admin/subscription-requests/{$rejectId}/reject", [
+        'reason' => 'Payment not found in bank statement'
+    ], $adminToken);
+    if ($resReject['status'] !== 200 || $resReject['body']['data']['request']['status'] !== 'rejected') {
+        throw new \Exception("SuperAdmin rejection failed: " . json_encode($resReject));
+    }
+
+    // 7. Super Admin Approves the valid request
+    $resApprove = callApi('POST', "/api/admin/subscription-requests/{$reqId}/approve", [
+        'admin_notes' => 'UTR verified in HDFC Current Account'
+    ], $adminToken);
+
+    if ($resApprove['status'] !== 200) {
+        throw new \Exception("SuperAdmin approval failed: " . json_encode($resApprove));
+    }
+    if ($resApprove['body']['data']['request']['status'] !== 'approved') {
+        throw new \Exception("Request status not marked approved after SuperAdmin approval");
+    }
+
+    // 8. Verify tenant quota was automatically upgraded by 2 blocks (+200 slots)
+    $resSubAfter = callApi('GET', '/api/subscription', [], $tenantToken);
+    $finalMax = (int)$resSubAfter['body']['data']['quota']['max_allowed'];
+    if ($finalMax !== $initialMax + 200) {
+        throw new \Exception("Capacity not upgraded! Expected {$initialMax} + 200 = " . ($initialMax + 200) . ", got {$finalMax}");
+    }
+}, $passed, $failed);
+
+// ==========================================
 // TEST 12: Super Admin Platform Governance
 // ==========================================
 runApiTest("API Super Admin: Platform Stats, Settings & Tenant Governance", function() use (&$adminToken) {

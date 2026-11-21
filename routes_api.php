@@ -156,6 +156,7 @@ return function (Router $router): void {
 
     // 10. Subscription & Quota
     $router->get('/api/subscription', [SubscriptionApiController::class, 'getSubscription'], ['api.tenant']);
+    $router->post('/api/subscription/request-upgrade', [SubscriptionApiController::class, 'requestUpgrade'], ['api.tenant']);
     $router->post('/api/subscription/upgrade', [SubscriptionApiController::class, 'upgradeQuota'], ['api.tenant']);
 
     // 11. Super Admin Platform Governance
@@ -166,4 +167,7 @@ return function (Router $router): void {
     $router->get('/api/admin/tenants', [AdminApiController::class, 'getTenants'], ['api.admin']);
     $router->post('/api/admin/tenants/{id}/toggle-status', [AdminApiController::class, 'toggleTenantStatus'], ['api.admin']);
     $router->post('/api/admin/tenants/{id}/quota', [AdminApiController::class, 'adjustQuota'], ['api.admin']);
+    $router->get('/api/admin/subscription-requests', [AdminApiController::class, 'getSubscriptionRequests'], ['api.admin']);
+    $router->post('/api/admin/subscription-requests/{id}/approve', [AdminApiController::class, 'approveSubscriptionRequest'], ['api.admin']);
+    $router->post('/api/admin/subscription-requests/{id}/reject', [AdminApiController::class, 'rejectSubscriptionRequest'], ['api.admin']);
 };

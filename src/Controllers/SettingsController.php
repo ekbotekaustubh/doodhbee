@@ -400,20 +400,58 @@ final class SettingsController
         // Fetch subscription and quota via REST API
         $subRes = ApiClient::get('/api/subscription');
         $quota = $subRes['data']['quota'] ?? [];
+        $pricing = $subRes['data']['pricing'] ?? [];
+        $bankDetails = $subRes['data']['bank_details'] ?? [];
+        $pendingRequest = $subRes['data']['pending_request'] ?? null;
+        $upgradeRequests = $subRes['data']['upgrade_requests'] ?? [];
 
         View::render('settings/subscription', [
             'quota' => $quota,
+            'pricing' => $pricing,
+            'bankDetails' => $bankDetails,
+            'pendingRequest' => $pendingRequest,
+            'upgradeRequests' => $upgradeRequests,
             'success' => Auth::flash('success'),
             'error' => Auth::flash('error'),
         ], 'main');
+    }
+
+    public function requestUpgrade(Request $request): void
+    {
+        Auth::requireTenantAdmin();
+        $blocks = max(1, (int)$request->post('blocks', 1));
+        $utrNumber = trim((string)$request->post('utr_number', ''));
+        $paymentMethod = trim((string)$request->post('payment_method', 'upi'));
+        $notes = trim((string)$request->post('notes', ''));
+
+        $res = ApiClient::post('/api/subscription/request-upgrade', [
+            'blocks' => $blocks,
+            'utr_number' => $utrNumber,
+            'payment_method' => $paymentMethod,
+            'notes' => $notes,
+        ]);
+
+        if ($res['success']) {
+            Auth::flash('success', $res['message'] ?? 'Payment upgrade request submitted successfully. SuperAdmin will verify and activate your quota.');
+        } else {
+            Auth::flash('error', $res['error'] ?? 'Failed to submit payment upgrade request.');
+        }
+
+        Response::redirect(url('/subscription'));
     }
 
     public function upgradeQuota(Request $request): void
     {
         Auth::requireTenantAdmin();
         $blocks = max(1, (int)$request->post('blocks', 1));
+        $utrNumber = trim((string)$request->post('utr_number', ''));
 
-        // Upgrade quota via REST API
+        if (!empty($utrNumber)) {
+            $this->requestUpgrade($request);
+            return;
+        }
+
+        // Upgrade quota via REST API (fallback / demo mode)
         $res = ApiClient::post('/api/subscription/upgrade', [
             'blocks' => $blocks,
         ]);

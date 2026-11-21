@@ -123,6 +123,7 @@ return function (Router $router): void {
     $router->post('/settings/staff/{id}/toggle', [SettingsController::class, 'toggleStaff'], ['tenant']);
     $router->post('/settings/staff/{id}/delete', [SettingsController::class, 'deleteStaff'], ['tenant']);
     $router->get('/subscription', [SettingsController::class, 'subscriptionView'], ['tenant']);
+    $router->post('/subscription/request-upgrade', [SettingsController::class, 'requestUpgrade'], ['tenant']);
     $router->post('/subscription/upgrade', [SettingsController::class, 'upgradeQuota'], ['tenant']);
 
     // 7. Super Admin SaaS Platform Governance
@@ -130,6 +131,8 @@ return function (Router $router): void {
     $router->post('/admin/settings', [SuperAdminController::class, 'updateSettings'], ['admin']);
     $router->post('/admin/tenants/{id}/toggle-status', [SuperAdminController::class, 'toggleTenantStatus'], ['admin']);
     $router->post('/admin/tenants/{id}/quota', [SuperAdminController::class, 'adjustQuota'], ['admin']);
+    $router->post('/admin/subscription-requests/{id}/approve', [SuperAdminController::class, 'approveUpgradeRequest'], ['admin']);
+    $router->post('/admin/subscription-requests/{id}/reject', [SuperAdminController::class, 'rejectUpgradeRequest'], ['admin']);
 
     // 8. REST API Endpoints (Mobile & Headless)
     $apiRoutes = require __DIR__ . '/routes_api.php';

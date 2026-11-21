@@ -12,6 +12,7 @@ DROP TABLE IF EXISTS customer_subscriptions;
 DROP TABLE IF EXISTS customer_leaves;
 DROP TABLE IF EXISTS customers;
 DROP TABLE IF EXISTS products;
+DROP TABLE IF EXISTS subscription_upgrade_requests;
 DROP TABLE IF EXISTS tenant_subscriptions;
 DROP TABLE IF EXISTS tenant_additional_charges;
 DROP TABLE IF EXISTS tenant_settings;
@@ -98,6 +99,28 @@ CREATE TABLE tenant_subscriptions (
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
     UNIQUE KEY uq_tenant_subscription_tenant (tenant_id),
     INDEX idx_tenant_sub (tenant_id, payment_status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 6a. Tenant Subscription Upgrade Requests (Approach 1: Offline Payment & UTR Verification)
+CREATE TABLE subscription_upgrade_requests (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    tenant_id INT NOT NULL,
+    blocks_requested INT NOT NULL DEFAULT 1,
+    customer_slots INT NOT NULL DEFAULT 100,
+    amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    payment_method VARCHAR(50) NOT NULL DEFAULT 'upi',
+    utr_number VARCHAR(100) NOT NULL,
+    payment_proof_path VARCHAR(255) NULL,
+    notes TEXT NULL,
+    status ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
+    admin_notes TEXT NULL,
+    reviewed_by INT NULL,
+    reviewed_at DATETIME NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+    INDEX idx_sub_req_tenant (tenant_id, status),
+    INDEX idx_sub_req_status (status, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 6b. Tenant Product Catalog (Approach A: Normalized Multi-Product Architecture)

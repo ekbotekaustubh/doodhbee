@@ -25,6 +25,10 @@ final class SuperAdminController
         $statsRes = ApiClient::get('/api/admin/stats');
         $stats = $statsRes['data'] ?? [];
 
+        // 4. Fetch subscription upgrade requests via REST API
+        $subReqRes = ApiClient::get('/api/admin/subscription-requests');
+        $upgradeRequests = $subReqRes['data'] ?? [];
+
         $totalTenants = $stats['total_tenants'] ?? count($tenants);
         $totalActiveCustomers = $stats['total_customers'] ?? 0;
         $platformRevenue = (float)($stats['total_platform_revenue'] ?? 0.0);
@@ -33,6 +37,7 @@ final class SuperAdminController
             'admin' => Auth::admin(),
             'tenants' => $tenants,
             'systemSettings' => $systemSettings,
+            'upgradeRequests' => $upgradeRequests,
             'totalTenants' => $totalTenants,
             'totalActiveCustomers' => $totalActiveCustomers,
             'platformRevenue' => $platformRevenue,
@@ -49,6 +54,11 @@ final class SuperAdminController
             'paid_tier_unit_price' => (float)$request->post('paid_tier_unit_price', 200.0),
             'currency_symbol' => trim((string)$request->post('currency_symbol', '₹')),
             'platform_name' => trim((string)$request->post('platform_name', 'DoodhBee SaaS')),
+            'payment_upi_id' => trim((string)$request->post('payment_upi_id', '')),
+            'payment_account_name' => trim((string)$request->post('payment_account_name', '')),
+            'payment_bank_name' => trim((string)$request->post('payment_bank_name', '')),
+            'payment_account_number' => trim((string)$request->post('payment_account_number', '')),
+            'payment_ifsc_code' => trim((string)$request->post('payment_ifsc_code', '')),
         ];
 
         // Update settings via REST API
@@ -97,5 +107,41 @@ final class SuperAdminController
         }
 
         Response::redirect(url('/admin'));
+    }
+
+    public function approveUpgradeRequest(Request $request, array $params): void
+    {
+        $requestId = (int)($params['id'] ?? 0);
+        $adminNotes = trim((string)$request->post('admin_notes', 'Verified payment in bank/UPI account'));
+
+        $res = ApiClient::post("/api/admin/subscription-requests/{$requestId}/approve", [
+            'admin_notes' => $adminNotes,
+        ]);
+
+        if ($res['success']) {
+            Auth::flash('success', $res['message'] ?? 'Subscription upgrade approved and quota added successfully.');
+        } else {
+            Auth::flash('error', $res['error'] ?? 'Failed to approve upgrade request.');
+        }
+
+        Response::redirect(url('/admin#subscription-requests'));
+    }
+
+    public function rejectUpgradeRequest(Request $request, array $params): void
+    {
+        $requestId = (int)($params['id'] ?? 0);
+        $reason = trim((string)$request->post('reason', 'Payment could not be verified in bank/UPI account'));
+
+        $res = ApiClient::post("/api/admin/subscription-requests/{$requestId}/reject", [
+            'reason' => $reason,
+        ]);
+
+        if ($res['success']) {
+            Auth::flash('success', 'Subscription upgrade request rejected.');
+        } else {
+            Auth::flash('error', $res['error'] ?? 'Failed to reject upgrade request.');
+        }
+
+        Response::redirect(url('/admin#subscription-requests'));
     }
 }

@@ -81,6 +81,29 @@ try {
     }
     echo "• Tenant settings WhatsApp columns verified.\n";
 
+    // 3. Ensure subscription_upgrade_requests table exists (Approach 1: Offline Payment & UTR Verification)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS subscription_upgrade_requests (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        tenant_id INT NOT NULL,
+        blocks_requested INT NOT NULL DEFAULT 1,
+        customer_slots INT NOT NULL DEFAULT 100,
+        amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+        payment_method VARCHAR(50) NOT NULL DEFAULT 'upi',
+        utr_number VARCHAR(100) NOT NULL,
+        payment_proof_path VARCHAR(255) NULL,
+        notes TEXT NULL,
+        status ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
+        admin_notes TEXT NULL,
+        reviewed_by INT NULL,
+        reviewed_at DATETIME NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+        INDEX idx_sub_req_tenant (tenant_id, status),
+        INDEX idx_sub_req_status (status, created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    echo "• Table subscription_upgrade_requests verified.\n";
+
     // Ensure default system settings exist
     $defaultSettings = [
         'free_customer_limit' => '5',
@@ -88,8 +111,14 @@ try {
         'paid_tier_unit_price' => '200.00',
         'currency_symbol' => '₹',
         'platform_name' => 'DoodhBee SaaS',
-        'support_email' => 'support@doodhbee.com',
-        'support_phone' => '+91 98000 11223'
+        'support_email' => 'hello@doodhbee.com',
+        'support_phone' => '+91 9096279526',
+        'payment_upi_id' => 'kaustubh51-3@okicici',
+        'payment_account_name' => 'Shri Ram Open Source Technologies',
+        'payment_bank_name' => 'Saraswat Co-operative Bank Ltd.',
+        'payment_account_number' => '610000000039273',
+        'payment_ifsc_code' => 'srcb0000370',
+        'payment_qr_image_url' => ''
     ];
 
     $stmt = $pdo->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = setting_value");

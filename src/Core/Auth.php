@@ -307,6 +307,12 @@ final class Auth
         return $_SESSION['admin'] ?? null;
     }
 
+    public static function adminId(): ?int
+    {
+        $admin = self::admin();
+        return $admin ? (int)$admin['id'] : null;
+    }
+
     public static function isAdmin(): bool
     {
         return self::admin() !== null;

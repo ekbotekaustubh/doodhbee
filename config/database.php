@@ -34,13 +34,23 @@ function getDbConnection(): PDO
 
     if ($pdo === null) {
         $config = getDbConfig();
-        $dsn = sprintf(
-            'mysql:host=%s;port=%d;dbname=%s;charset=%s',
-            $config['host'],
-            $config['port'],
-            $config['database'],
-            $config['charset']
-        );
+        $socket = Env::get('DB_SOCKET', file_exists('/tmp/mysql.sock') ? '/tmp/mysql.sock' : null);
+        if ($socket) {
+            $dsn = sprintf(
+                'mysql:unix_socket=%s;dbname=%s;charset=%s',
+                $socket,
+                $config['database'],
+                $config['charset']
+            );
+        } else {
+            $dsn = sprintf(
+                'mysql:host=%s;port=%d;dbname=%s;charset=%s',
+                $config['host'],
+                $config['port'],
+                $config['database'],
+                $config['charset']
+            );
+        }
         $pdo = new PDO($dsn, $config['username'], $config['password'], $config['options']);
     }
 

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controllers\Api;
 
+use App\Core\Auth;
 use App\Core\Request;
 use App\Services\QuotaService;
 
@@ -73,6 +74,25 @@ final class AdminApiController extends ApiBaseController
             'support_email' => $supportEmail,
             'support_phone' => $supportPhone,
         ];
+
+        if ($request->has('payment_upi_id')) {
+            $settings['payment_upi_id'] = trim((string)$request->input('payment_upi_id', ''));
+        }
+        if ($request->has('payment_account_name')) {
+            $settings['payment_account_name'] = trim((string)$request->input('payment_account_name', ''));
+        }
+        if ($request->has('payment_bank_name')) {
+            $settings['payment_bank_name'] = trim((string)$request->input('payment_bank_name', ''));
+        }
+        if ($request->has('payment_account_number')) {
+            $settings['payment_account_number'] = trim((string)$request->input('payment_account_number', ''));
+        }
+        if ($request->has('payment_ifsc_code')) {
+            $settings['payment_ifsc_code'] = trim((string)$request->input('payment_ifsc_code', ''));
+        }
+        if ($request->has('payment_qr_image_url')) {
+            $settings['payment_qr_image_url'] = trim((string)$request->input('payment_qr_image_url', ''));
+        }
 
         $stmt = $this->db->getPdo()->prepare(
             "INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?)
@@ -176,5 +196,51 @@ final class AdminApiController extends ApiBaseController
         $quota = $this->quotaService->getTenantQuota($id);
 
         $this->jsonSuccess($quota, "Quota updated for {$tenant['business_name']}.");
+    }
+
+    public function getSubscriptionRequests(Request $request): void
+    {
+        $status = $request->get('status');
+        $statusStr = $status !== null && $status !== '' ? (string)$status : null;
+        $requests = $this->quotaService->getAllUpgradeRequests($statusStr);
+        $this->jsonSuccess($requests);
+    }
+
+    public function approveSubscriptionRequest(Request $request, array $params): void
+    {
+        $id = (int)($params['id'] ?? 0);
+        $adminId = Auth::adminId() ?? 1;
+        $adminNotes = trim((string)$request->input('admin_notes', 'Verified payment in bank/UPI account'));
+
+        try {
+            $res = $this->quotaService->approveUpgradeRequest($id, $adminId, $adminNotes);
+        } catch (\InvalidArgumentException $e) {
+            $this->jsonError($e->getMessage(), 422, 'VALIDATION_ERROR');
+        } catch (\Throwable $e) {
+            $this->jsonError('Failed to approve request: ' . $e->getMessage(), 500, 'SERVER_ERROR');
+        }
+
+        $this->jsonSuccess($res, 'Subscription upgrade request approved and quota updated successfully.');
+    }
+
+    public function rejectSubscriptionRequest(Request $request, array $params): void
+    {
+        $id = (int)($params['id'] ?? 0);
+        $adminId = Auth::adminId() ?? 1;
+        $reason = trim((string)$request->input('reason', 'Payment could not be verified in bank statement'));
+
+        if (empty($reason)) {
+            $reason = 'Payment could not be verified.';
+        }
+
+        try {
+            $res = $this->quotaService->rejectUpgradeRequest($id, $adminId, $reason);
+        } catch (\InvalidArgumentException $e) {
+            $this->jsonError($e->getMessage(), 422, 'VALIDATION_ERROR');
+        } catch (\Throwable $e) {
+            $this->jsonError('Failed to reject request: ' . $e->getMessage(), 500, 'SERVER_ERROR');
+        }
+
+        $this->jsonSuccess($res, 'Subscription upgrade request rejected.');
     }
 }
