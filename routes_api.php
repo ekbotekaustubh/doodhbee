@@ -47,7 +47,7 @@ return function (Router $router): void {
             'php' => PHP_VERSION,
             'database' => [
                 'status' => $dbStatus,
-                'name' => \App\Core\Env::get('DB_DATABASE', 'dairyflow'),
+                'name' => \App\Core\Env::get('DB_DATABASE', 'doodhbee'),
             ],
             'storage' => [
                 'logs' => is_writable(__DIR__ . '/storage/logs') ? 'writable' : 'read-only',

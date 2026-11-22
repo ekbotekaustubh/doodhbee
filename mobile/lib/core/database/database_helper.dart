@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
@@ -78,21 +79,59 @@ class DatabaseHelper {
   }
 
   // Helper Methods for Deliveries
+  Future<void> markDeliverySynced({
+    required int customerId,
+    required String date,
+    required String shift,
+  }) async {
+    final db = await database;
+    await db.update(
+      'deliveries',
+      {'synced': 1},
+      where: 'customer_id = ? AND delivery_date = ? AND shift = ?',
+      whereArgs: [customerId, date, shift],
+    );
+  }
+
   Future<void> upsertDeliveries(List<Map<String, dynamic>> items, String date, String shift) async {
     final db = await database;
+
+    // Check which customers have pending unflushed outbox entries for this date/shift
+    final pendingOutbox = await getPendingOutbox();
+    final pendingCustomerIds = <int>{};
+    for (var t in pendingOutbox) {
+      try {
+        final p = jsonDecode(t['payload_json'] as String);
+        final cId = p['customer_id'] as int?;
+        final dDate = (p['delivery_date'] ?? p['date']) as String?;
+        final dShift = p['shift'] as String?;
+        if (cId != null && dDate == date && dShift == shift) {
+          pendingCustomerIds.add(cId);
+        }
+      } catch (_) {}
+    }
+
     final batch = db.batch();
 
-    // Clear old synced items for this date/shift before repopulating
-    await db.delete(
-      'deliveries',
-      where: 'delivery_date = ? AND shift = ? AND synced = 1',
-      whereArgs: [date, shift],
-    );
-
     for (var it in items) {
+      final customerId = it['customer_id'] as int;
+
+      // If customer has a pending outbox modification that hasn't synced to server yet, keep the local optimistic state
+      if (pendingCustomerIds.contains(customerId)) {
+        continue;
+      }
+
+      // Delete any existing local records for this customer on this date/shift to prevent duplicates
+      batch.delete(
+        'deliveries',
+        where: 'customer_id = ? AND delivery_date = ? AND shift = ?',
+        whereArgs: [customerId, date, shift],
+      );
+
+      // Insert the authoritative server record (synced = 1)
       batch.insert('deliveries', {
         'server_id': it['id'],
-        'customer_id': it['customer_id'],
+        'customer_id': customerId,
         'customer_name': it['customer_name'] ?? 'Customer',
         'customer_phone': it['customer_phone'] ?? '',
         'address': it['address'] ?? '',

@@ -20,6 +20,13 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   List<dynamic> _payments = [];
   Map<String, dynamic>? _settings;
   bool _isLoading = true;
+  String? _errorMessage;
+
+  double _toDouble(dynamic val) {
+    if (val == null) return 0.0;
+    if (val is num) return val.toDouble();
+    return double.tryParse(val.toString()) ?? 0.0;
+  }
 
   @override
   void initState() {
@@ -28,19 +35,37 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   }
 
   Future<void> _loadInvoiceDetail() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
-    final res = await _api.get('${ApiConstants.invoices}/${widget.invoiceId}');
+    try {
+      final res = await _api.get('${ApiConstants.invoices}/${widget.invoiceId}');
 
-    if (res.success && res.data != null) {
+      if (res.success && res.data != null) {
+        setState(() {
+          _invoice = res.data['invoice'] is Map<String, dynamic>
+              ? res.data['invoice'] as Map<String, dynamic>
+              : (res.data['invoice'] is Map ? Map<String, dynamic>.from(res.data['invoice']) : null);
+          _payments = res.data['payments'] is List ? (res.data['payments'] as List) : [];
+          _settings = res.data['settings'] is Map<String, dynamic>
+              ? res.data['settings'] as Map<String, dynamic>
+              : (res.data['settings'] is Map ? Map<String, dynamic>.from(res.data['settings']) : null);
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _errorMessage = res.error ?? res.message ?? 'Invoice not found or could not be loaded.';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
       setState(() {
-        _invoice = res.data['invoice'];
-        _payments = res.data['payments'] ?? [];
-        _settings = res.data['settings'];
+        _errorMessage = 'Network error or unable to reach server: $e';
+        _isLoading = false;
       });
     }
-
-    setState(() => _isLoading = false);
   }
 
   Future<void> _shareOnWhatsApp() async {
@@ -64,7 +89,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
 
   void _showUpiQrDialog() {
     final upiId = _settings?['upi_id'] ?? 'krushnadairy@oksbi';
-    final balance = (_invoice?['final_amount'] as num?)?.toDouble() ?? 0.0;
+    final balance = _toDouble(_invoice?['final_amount']);
     final customerName = _invoice?['customer_name'] ?? 'Customer';
 
     final upiUri = 'upi://pay?pa=$upiId&pn=DoodhBee%20Dairy&am=${balance.toStringAsFixed(2)}&cu=INR&tn=Milk%20Bill%20for%20$customerName';
@@ -101,7 +126,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   }
 
   void _showCollectPaymentDialog() {
-    final balance = (_invoice?['final_amount'] as num?)?.toDouble() ?? 0.0;
+    final balance = _toDouble(_invoice?['final_amount']);
     final amountController = TextEditingController(text: balance.toStringAsFixed(2));
     final refController = TextEditingController();
     String paymentMode = 'cash';
@@ -170,14 +195,52 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Invoice Details')),
-        body: const Center(child: CircularProgressIndicator()),
+        appBar: AppBar(title: Text('Invoice #${widget.invoiceId}')),
+        body: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Loading invoice details...', style: TextStyle(color: Colors.black54)),
+            ],
+          ),
+        ),
       );
     }
 
-    final inv = _invoice ?? {};
-    final totalUnits = (inv['total_units'] as num?)?.toDouble() ?? 0.0;
-    final finalAmount = (inv['final_amount'] as num?)?.toDouble() ?? 0.0;
+    if (_errorMessage != null || _invoice == null) {
+      return Scaffold(
+        appBar: AppBar(title: Text('Invoice #${widget.invoiceId}')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                const SizedBox(height: 16),
+                Text(
+                  _errorMessage ?? 'Unable to display invoice.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87),
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton.icon(
+                  onPressed: _loadInvoiceDetail,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final inv = _invoice!;
+    final totalUnits = _toDouble(inv['total_units']);
+    final finalAmount = _toDouble(inv['final_amount']);
     final isPaid = inv['payment_status'] == 'paid';
 
     return Scaffold(
@@ -327,7 +390,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                       backgroundColor: Color(0xFFDCFCE7),
                       child: Text('✓', style: TextStyle(color: Color(0xFF15803D), fontWeight: FontWeight.bold)),
                     ),
-                    title: Text('₹${(p['amount'] as num?)?.toDouble().toStringAsFixed(2)} via ${(p['payment_mode'] ?? 'cash').toUpperCase()}'),
+                    title: Text('₹${_toDouble(p['amount']).toStringAsFixed(2)} via ${(p['payment_mode'] ?? 'cash').toUpperCase()}'),
                     subtitle: Text('Date: ${p['payment_date'] ?? ''} ${p['reference_number'] != null ? '• Ref: ${p['reference_number']}' : ''}'),
                   ),
                 );

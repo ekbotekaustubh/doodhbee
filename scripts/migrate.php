@@ -13,7 +13,7 @@ echo "========================================================\n\n";
 try {
     $db = Database::getInstance();
     $pdo = $db->getPdo();
-    $dbName = Env::get('DB_DATABASE', 'dairyflow');
+    $dbName = Env::get('DB_DATABASE', 'doodhbee');
     echo "• Connected to database: [{$dbName}]\n";
 
     $existingTables = $db->fetchAll("SHOW TABLES");

@@ -132,7 +132,7 @@ final class PaymentApiController extends ApiBaseController
         $customer = $this->db->fetchOne(
             "SELECT c.id, c.name, c.phone, c.address, c.route_id, r.name AS route_name 
              FROM customers c 
-             JOIN routes r ON r.id = c.route_id 
+             LEFT JOIN routes r ON r.id = c.route_id 
              WHERE c.id = ? AND c.tenant_id = ?",
             [$customerId, $tenantId]
         );

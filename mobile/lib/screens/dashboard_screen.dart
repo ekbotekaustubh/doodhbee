@@ -7,6 +7,7 @@ import 'login_screen.dart';
 import 'product_list_screen.dart';
 import 'route_list_screen.dart';
 import 'settings_screen.dart';
+import 'staff_list_screen.dart';
 import 'subscription_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -454,7 +455,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  const Expanded(child: SizedBox()),
+                  Expanded(
+                    child: Card(
+                      child: InkWell(
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const StaffListScreen()),
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        child: const Padding(
+                          padding: EdgeInsets.all(14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              CircleAvatar(
+                                backgroundColor: Color(0xFFFEF2F2),
+                                foregroundColor: Color(0xFFDC2626),
+                                radius: 18,
+                                child: Icon(Icons.badge_outlined, size: 20),
+                              ),
+                              SizedBox(height: 10),
+                              Text('Staff & Riders', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                              SizedBox(height: 2),
+                              Text('Manage delivery team', style: TextStyle(fontSize: 11, color: Colors.black54)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 24),

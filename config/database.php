@@ -20,9 +20,9 @@ function getDbConfig(): array
     return [
         'host' => (string)Env::get('DB_HOST', '127.0.0.1'),
         'port' => (int)Env::get('DB_PORT', 3306),
-        'database' => (string)Env::get('DB_DATABASE', 'dairyflow'),
-        'username' => (string)Env::get('DB_USERNAME', 'dairyflow'),
-        'password' => (string)Env::get('DB_PASSWORD', 'dairyflow123'),
+        'database' => (string)Env::get('DB_DATABASE', 'doodhbee'),
+        'username' => (string)Env::get('DB_USERNAME', 'root'),
+        'password' => (string)Env::get('DB_PASSWORD', 'Root@1234'),
         'charset' => 'utf8mb4',
         'options' => $options
     ];

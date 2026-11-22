@@ -6,6 +6,7 @@ import 'package:doodhbee_mobile/models/invoice.dart';
 import 'package:doodhbee_mobile/models/product.dart';
 import 'package:doodhbee_mobile/models/additional_charge.dart';
 import 'package:doodhbee_mobile/models/ledger_entry.dart';
+import 'package:doodhbee_mobile/models/staff_member.dart';
 import 'package:doodhbee_mobile/core/constants/api_constants.dart';
 import 'package:doodhbee_mobile/core/theme/app_theme.dart';
 
@@ -251,6 +252,45 @@ void main() {
       expect(entry.isPayment, false);
       expect(entry.debit, 1800.0);
       expect(entry.balanceAfter, 1800.0);
+    });
+  });
+
+  group('StaffMember Model Tests', () {
+    test('Deserializes StaffMember with role and route assignment correctly', () {
+      final json = {
+        'id': 7,
+        'tenant_id': 1,
+        'name': 'Raju Rider',
+        'phone': '9876543210',
+        'email': 'raju@doodhbee.com',
+        'role': 'delivery',
+        'assigned_route_id': 3,
+        'assigned_route_name': 'Morning Line 1',
+        'is_active': 1,
+        'created_at': '2026-11-22 10:00:00',
+      };
+
+      final staff = StaffMember.fromJson(json);
+      expect(staff.id, 7);
+      expect(staff.tenantId, 1);
+      expect(staff.name, 'Raju Rider');
+      expect(staff.phone, '9876543210');
+      expect(staff.email, 'raju@doodhbee.com');
+      expect(staff.role, 'delivery');
+      expect(staff.isDelivery, true);
+      expect(staff.isAdmin, false);
+      expect(staff.assignedRouteId, 3);
+      expect(staff.assignedRouteName, 'Morning Line 1');
+      expect(staff.isActive, true);
+
+      final map = staff.toJson();
+      expect(map['role'], 'delivery');
+      expect(map['is_active'], 1);
+      expect(map['assigned_route_id'], 3);
+    });
+
+    test('ApiConstants.staff endpoint is defined', () {
+      expect(ApiConstants.staff, '/staff');
     });
   });
 

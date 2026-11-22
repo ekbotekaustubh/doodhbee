@@ -32,7 +32,7 @@ final class InvoiceApiController extends ApiBaseController
         $sql = "SELECT i.*, c.name as customer_name, c.phone as customer_phone, r.name as route_name
                 FROM invoices i
                 JOIN customers c ON c.id = i.customer_id
-                JOIN routes r ON r.id = c.route_id
+                LEFT JOIN routes r ON r.id = c.route_id
                 WHERE i.tenant_id = ?";
         $params = [$tenantId];
 
@@ -81,7 +81,7 @@ final class InvoiceApiController extends ApiBaseController
 
     public function show(Request $request, array $params): void
     {
-        Auth::requireApiTenantAdmin();
+        Auth::requireApiTenant();
         $tenantId = $this->tenantId();
         $id = (int)($params['id'] ?? 0);
 
@@ -89,7 +89,7 @@ final class InvoiceApiController extends ApiBaseController
             "SELECT i.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address, r.name as route_name
              FROM invoices i
              JOIN customers c ON c.id = i.customer_id
-             JOIN routes r ON r.id = c.route_id
+             LEFT JOIN routes r ON r.id = c.route_id
              WHERE i.id = ? AND i.tenant_id = ?",
             [$id, $tenantId]
         );
@@ -102,6 +102,18 @@ final class InvoiceApiController extends ApiBaseController
             "SELECT * FROM payments WHERE invoice_id = ? AND tenant_id = ? ORDER BY payment_date ASC",
             [$id, $tenantId]
         );
+
+        foreach ($payments as &$p) {
+            $p['amount'] = (float)$p['amount'];
+        }
+        unset($p);
+
+        $invoice['total_units'] = (float)$invoice['total_units'];
+        $invoice['milk_subtotal'] = (float)$invoice['milk_subtotal'];
+        $invoice['additional_charges_total'] = (float)$invoice['additional_charges_total'];
+        $invoice['tax_amount'] = (float)$invoice['tax_amount'];
+        $invoice['previous_balance'] = (float)$invoice['previous_balance'];
+        $invoice['final_amount'] = (float)$invoice['final_amount'];
 
         $paidAmount = array_sum(array_column($payments, 'amount'));
         $balanceRemaining = max(0.0, round(((float)$invoice['final_amount']) - $paidAmount, 2));
@@ -181,7 +193,7 @@ final class InvoiceApiController extends ApiBaseController
 
     public function share(Request $request, array $params): void
     {
-        Auth::requireApiTenantAdmin();
+        Auth::requireApiTenant();
         $tenantId = $this->tenantId();
         $id = (int)($params['id'] ?? 0);
 

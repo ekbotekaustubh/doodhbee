@@ -11,9 +11,9 @@ echo "========================================================\n\n";
 
 $dbHost = (string)Env::get('DB_HOST', '127.0.0.1');
 $dbPort = (string)Env::get('DB_PORT', '3306');
-$dbName = (string)Env::get('DB_DATABASE', 'dairyflow');
-$dbUser = (string)Env::get('DB_USERNAME', 'dairyflow');
-$dbPass = (string)Env::get('DB_PASSWORD', 'dairyflow123');
+$dbName = (string)Env::get('DB_DATABASE', 'doodhbee');
+$dbUser = (string)Env::get('DB_USERNAME', 'root');
+$dbPass = (string)Env::get('DB_PASSWORD', 'Root@1234');
 
 $backupDir = dirname(__DIR__) . '/storage/backups';
 if (!is_dir($backupDir)) {

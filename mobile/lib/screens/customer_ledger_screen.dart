@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../core/api/api_client.dart';
 import '../core/constants/api_constants.dart';
 import '../models/ledger_entry.dart';
+import 'invoice_detail_screen.dart';
 
 class CustomerLedgerScreen extends StatefulWidget {
   final int customerId;
@@ -32,6 +33,12 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen> {
     _loadLedger();
   }
 
+  double _toDouble(dynamic val) {
+    if (val == null) return 0.0;
+    if (val is num) return val.toDouble();
+    return double.tryParse(val.toString()) ?? 0.0;
+  }
+
   Future<void> _loadLedger() async {
     setState(() {
       _isLoading = true;
@@ -47,7 +54,7 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen> {
 
       setState(() {
         _customer = res.data['customer'];
-        _currentBalanceDue = (res.data['current_balance_due'] as num?)?.toDouble() ?? 0.0;
+        _currentBalanceDue = _toDouble(res.data['current_balance_due']);
         _ledger = list;
         _isLoading = false;
       });
@@ -144,9 +151,22 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen> {
 
                                   return Card(
                                     margin: const EdgeInsets.symmetric(vertical: 4),
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(12),
-                                      child: Row(
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(12),
+                                      onTap: isDebit && entry.id > 0
+                                          ? () async {
+                                              await Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (_) => InvoiceDetailScreen(invoiceId: entry.id),
+                                                ),
+                                              );
+                                              _loadLedger();
+                                            }
+                                          : null,
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(12),
+                                        child: Row(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           CircleAvatar(
@@ -195,7 +215,8 @@ class _CustomerLedgerScreenState extends State<CustomerLedgerScreen> {
                                         ],
                                       ),
                                     ),
-                                  );
+                                  ),
+                                );
                                 },
                               ),
                             ),

@@ -95,7 +95,7 @@ final class DeliveryApiController extends ApiBaseController
         }
 
         // Enforce Zero-charge rule: Missed or paused days strictly logged with 0 quantity billed
-        $quantity = null;
+        $quantity = $request->input('quantity') !== null ? (float)$request->input('quantity') : null;
         if ($status === DeliveryStatus::Skipped->value || $status === DeliveryStatus::Leave->value) {
             $quantity = 0.00;
         }

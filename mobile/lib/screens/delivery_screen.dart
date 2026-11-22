@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../core/api/api_client.dart';
 import '../core/api/auth_service.dart';
 import '../core/constants/api_constants.dart';
+import '../core/database/database_helper.dart';
 import '../core/sync/sync_engine.dart';
 import '../models/delivery_item.dart';
 import 'login_screen.dart';
@@ -44,6 +45,10 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
 
     _syncEngine.connectivityStream.listen((isOnline) {
       if (mounted) setState(() {});
+    });
+
+    _syncEngine.syncCompletedStream.listen((_) {
+      if (mounted) _loadDeliveries();
     });
   }
 
@@ -127,6 +132,19 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
       quantity: quantity,
       notes: item.notes,
     );
+
+    // 3. If online and flushed immediately, mark synced in UI
+    if (_syncEngine.isOnline) {
+      final pending = await DatabaseHelper().getPendingOutboxCount();
+      if (pending == 0 && mounted) {
+        setState(() {
+          final index = _items.indexWhere((it) => it.customerId == item.customerId);
+          if (index != -1) {
+            _items[index] = _items[index].copyWith(synced: true);
+          }
+        });
+      }
+    }
   }
 
   void _showAdjustDialog(DeliveryItem item) {

@@ -49,6 +49,12 @@ class _ThermalReceiptScreenState extends State<ThermalReceiptScreen> {
     }
   }
 
+  double _toDouble(dynamic val) {
+    if (val == null) return 0.0;
+    if (val is num) return val.toDouble();
+    return double.tryParse(val.toString()) ?? 0.0;
+  }
+
   String _generateReceiptText() {
     final inv = _invoice ?? {};
     final dairyName = _settings?['business_name'] ?? 'DOODHBEE DAIRY';
@@ -59,11 +65,11 @@ class _ThermalReceiptScreenState extends State<ThermalReceiptScreen> {
     final invId = widget.invoiceId;
     final month = inv['billing_month'] ?? '';
     final year = inv['billing_year'] ?? '';
-    final totalUnits = (inv['total_units'] as num?)?.toDouble() ?? 0.0;
-    final milkSubtotal = (inv['milk_subtotal'] as num?)?.toDouble() ?? 0.0;
-    final chargesTotal = (inv['additional_charges_total'] as num?)?.toDouble() ?? 0.0;
-    final taxAmount = (inv['tax_amount'] as num?)?.toDouble() ?? 0.0;
-    final finalAmount = (inv['final_amount'] as num?)?.toDouble() ?? 0.0;
+    final totalUnits = _toDouble(inv['total_units']);
+    final milkSubtotal = _toDouble(inv['milk_subtotal']);
+    final chargesTotal = _toDouble(inv['additional_charges_total']);
+    final taxAmount = _toDouble(inv['tax_amount']);
+    final finalAmount = _toDouble(inv['final_amount']);
     final upiId = _settings?['upi_id'] ?? '';
 
     final buffer = StringBuffer();

@@ -23,6 +23,9 @@ class SyncEngine {
   final StreamController<int> _outboxCountController = StreamController<int>.broadcast();
   Stream<int> get outboxCountStream => _outboxCountController.stream;
 
+  final StreamController<void> _syncCompletedController = StreamController<void>.broadcast();
+  Stream<void> get syncCompletedStream => _syncCompletedController.stream;
+
   bool get isOnline => _isOnline;
   bool get isSyncing => _isSyncing;
 
@@ -129,6 +132,20 @@ class SyncEngine {
         if (res.success || res.statusCode == 200 || res.statusCode == 201) {
           // Successfully synced, remove task from outbox
           await _db.removeOutbox(id);
+
+          // Mark delivery as synced in local SQLite
+          if (payload is Map && payload['customer_id'] != null) {
+            final cId = payload['customer_id'] is int ? payload['customer_id'] as int : int.tryParse(payload['customer_id'].toString()) ?? 0;
+            final dDate = (payload['delivery_date'] ?? payload['date']) as String?;
+            final dShift = payload['shift'] as String?;
+            if (cId > 0 && dDate != null && dShift != null) {
+              await _db.markDeliverySynced(
+                customerId: cId,
+                date: dDate,
+                shift: dShift,
+              );
+            }
+          }
         } else if (res.statusCode >= 400 && res.statusCode < 500) {
           // Client validation or business rule conflict, discard or mark resolved
           await _db.removeOutbox(id);
@@ -142,6 +159,7 @@ class SyncEngine {
     } finally {
       _isSyncing = false;
       await _notifyOutboxCount();
+      _syncCompletedController.add(null);
     }
   }
 
