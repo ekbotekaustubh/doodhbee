@@ -103,6 +103,8 @@ return function (Router $router): void {
     $router->put('/api/customers/{id}', [CustomerApiController::class, 'update'], ['api.tenant']);
     $router->post('/api/customers/{id}', [CustomerApiController::class, 'update'], ['api.tenant']);
     $router->post('/api/customers/{id}/status', [CustomerApiController::class, 'toggleStatus'], ['api.tenant']);
+    $router->get('/api/customers/{id}/month-deliveries', [CustomerApiController::class, 'monthDeliveries'], ['api.tenant']);
+    $router->post('/api/customers/{id}/month-deliveries', [CustomerApiController::class, 'saveMonthDeliveries'], ['api.tenant']);
 
     // 5. Customer Leaves / Vacations
     $router->get('/api/customers/{id}/leaves', [LeaveApiController::class, 'index'], ['api.tenant']);
@@ -114,6 +116,7 @@ return function (Router $router): void {
     $router->post('/api/deliveries/toggle', [DeliveryApiController::class, 'toggle'], ['api.tenant']);
     $router->post('/api/deliveries/edit-quantity', [DeliveryApiController::class, 'editQuantity'], ['api.tenant']);
     $router->post('/api/deliveries/bulk-deliver', [DeliveryApiController::class, 'bulkDeliver'], ['api.tenant']);
+    $router->post('/api/deliveries/month-fill', [DeliveryApiController::class, 'monthFill'], ['api.tenant']);
     $router->get('/api/deliveries/summary', [DeliveryApiController::class, 'summary'], ['api.tenant']);
 
     // 7. Billing & Invoices

@@ -8,6 +8,7 @@ import '../core/constants/api_constants.dart';
 import '../core/database/database_helper.dart';
 import '../core/sync/sync_engine.dart';
 import '../models/delivery_item.dart';
+import 'customer_milk_card_screen.dart';
 import 'login_screen.dart';
 
 class DeliveryScreen extends StatefulWidget {
@@ -247,6 +248,151 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
     );
   }
 
+  void _showMonthFillDialog() {
+    int tempYear = _selectedDate.year;
+    int tempMonth = _selectedDate.month;
+    String tempShift = 'both';
+    String? tempRoute = _selectedRoute;
+    bool tempOverwrite = false;
+
+    final monthNames = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('📅 Month Auto-Fill'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Bulk populate daily deliveries for the entire month from active subscriptions.',
+                  style: TextStyle(fontSize: 12, color: Colors.black54),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<int>(
+                        initialValue: tempMonth,
+                        decoration: const InputDecoration(labelText: 'Month', border: OutlineInputBorder()),
+                        items: List.generate(12, (i) => DropdownMenuItem(
+                          value: i + 1,
+                          child: Text(monthNames[i], style: const TextStyle(fontSize: 12)),
+                        )),
+                        onChanged: (v) {
+                          if (v != null) setDialogState(() => tempMonth = v);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: DropdownButtonFormField<int>(
+                        initialValue: tempYear,
+                        decoration: const InputDecoration(labelText: 'Year', border: OutlineInputBorder()),
+                        items: [tempYear - 1, tempYear, tempYear + 1].map((y) => DropdownMenuItem(
+                          value: y,
+                          child: Text('$y', style: const TextStyle(fontSize: 12)),
+                        )).toList(),
+                        onChanged: (v) {
+                          if (v != null) setDialogState(() => tempYear = v);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: tempShift,
+                  decoration: const InputDecoration(labelText: 'Shift', border: OutlineInputBorder()),
+                  items: const [
+                    DropdownMenuItem(value: 'both', child: Text('Both Shifts (Morning & Evening)')),
+                    DropdownMenuItem(value: 'morning', child: Text('Morning Shift Only')),
+                    DropdownMenuItem(value: 'evening', child: Text('Evening Shift Only')),
+                  ],
+                  onChanged: (v) {
+                    if (v != null) setDialogState(() => tempShift = v);
+                  },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String?>(
+                  initialValue: tempRoute,
+                  decoration: const InputDecoration(labelText: 'Target Route', border: OutlineInputBorder()),
+                  items: [
+                    const DropdownMenuItem(value: null, child: Text('All Routes')),
+                    ..._routes.map((r) => DropdownMenuItem(value: r, child: Text(r))),
+                  ],
+                  onChanged: (v) => setDialogState(() => tempRoute = v),
+                ),
+                const SizedBox(height: 12),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Overwrite existing days', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  subtitle: const Text('Default keeps already logged deliveries untouched.', style: TextStyle(fontSize: 11)),
+                  value: tempOverwrite,
+                  onChanged: (v) => setDialogState(() => tempOverwrite = v ?? false),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0284C7),
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () async {
+                Navigator.pop(ctx);
+                final messenger = ScaffoldMessenger.of(context);
+                setState(() => _isLoading = true);
+                final res = await _api.post(ApiConstants.deliveryMonthFill, data: {
+                  'year': tempYear,
+                  'month': tempMonth,
+                  'shift': tempShift,
+                  'route': tempRoute,
+                  'overwrite': tempOverwrite,
+                });
+                if (mounted) {
+                  setState(() => _isLoading = false);
+                  if (res.success) {
+                    final data = res.data as Map<String, dynamic>?;
+                    final created = data?['records_created'] ?? 0;
+                    final litres = data?['total_litres'] ?? 0.0;
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: Text('✓ Month filled: $created deliveries generated ($litres L total)!'),
+                        backgroundColor: const Color(0xFF059669),
+                      ),
+                    );
+                    _loadDeliveries();
+                  } else {
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: Text(res.error ?? 'Failed to fill month.'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              },
+              child: const Text('Generate Deliveries'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _makePhoneCall(String phone) async {
     final clean = phone.replaceAll(RegExp(r'[^0-9]'), '');
     final uri = Uri.parse('tel:$clean');
@@ -307,6 +453,12 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
           ],
         ),
         actions: [
+          if (!_isDeliveryBoy)
+            IconButton(
+              icon: const Icon(Icons.calendar_month),
+              tooltip: 'Month Auto-Fill',
+              onPressed: _showMonthFillDialog,
+            ),
           IconButton(
             icon: const Icon(Icons.sync),
             tooltip: 'Sync Offline Changes',
@@ -782,9 +934,27 @@ class _DeliveryScreenState extends State<DeliveryScreen> {
                   OutlinedButton(
                     onPressed: () => _showAdjustDialog(item),
                     style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
                     ),
                     child: const Text('✏️ Edit'),
+                  ),
+                  const SizedBox(width: 6),
+
+                  // Monthly Milk Card Button
+                  IconButton.outlined(
+                    icon: const Icon(Icons.calendar_month, size: 18),
+                    tooltip: 'Monthly Milk Card',
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => CustomerMilkCardScreen(
+                            customerId: item.customerId,
+                            customerName: item.customerName,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),

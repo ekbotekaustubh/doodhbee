@@ -199,6 +199,13 @@ if ($defaultQty <= 0) {
                     </form>
                 </div>
             </div>
+
+            <!-- Customer Monthly Milk Card Shortcut -->
+            <a href="<?= url("/customers/{$customerId}/milk-card?year=" . date('Y', strtotime($date)) . "&month=" . date('n', strtotime($date))) ?>" 
+               title="View Monthly Milk Card (1–31 Days)" 
+               class="tap-target px-3 py-2.5 rounded-xl bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-300 hover:border-blue-300 text-xs font-bold transition flex items-center gap-1 shadow-sm">
+                <span>📅 Card</span>
+            </a>
         <?php endif; ?>
     </div>
 </div>

@@ -78,6 +78,7 @@ return function (Router $router): void {
     $router->post('/deliveries/toggle', [DeliveryController::class, 'toggle'], ['tenant']);
     $router->post('/deliveries/edit-quantity', [DeliveryController::class, 'editQuantity'], ['tenant']);
     $router->post('/deliveries/bulk-deliver', [DeliveryController::class, 'markAllDelivered'], ['tenant']);
+    $router->post('/deliveries/month-fill', [DeliveryController::class, 'monthFill'], ['tenant']);
     $router->get('/deliveries/stats-json', [DeliveryController::class, 'getStatsJson'], ['tenant']);
 
     // 4. Customers & Vacation Management (Quota Guarded)
@@ -89,6 +90,8 @@ return function (Router $router): void {
     $router->post('/customers', [CustomerController::class, 'store'], ['tenant']);
     $router->get('/customers/{id}/edit', [CustomerController::class, 'editView'], ['tenant']);
     $router->post('/customers/{id}', [CustomerController::class, 'update'], ['tenant']);
+    $router->get('/customers/{id}/milk-card', [CustomerController::class, 'milkCardView'], ['tenant']);
+    $router->post('/customers/{id}/milk-card', [CustomerController::class, 'saveMilkCard'], ['tenant']);
     $router->post('/customers/{id}/leaves', [CustomerController::class, 'addLeave'], ['tenant']);
     $router->post('/customers/{id}/leaves/{leave_id}/delete', [CustomerController::class, 'deleteLeave'], ['tenant']);
 

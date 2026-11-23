@@ -1,4 +1,4 @@
-<div class="space-y-4">
+<div class="space-y-4" x-data="{ showMonthFillModal: false }">
     <!-- Header Controls: Date Picker, Shift Selector, Route Filter & Search -->
     <div class="bg-white rounded-2xl border border-slate-200 p-4 md:p-5 shadow-sm space-y-4">
         <!-- Date Selector & Day Navigation -->
@@ -63,9 +63,13 @@
                 </a>
             </div>
 
-            <!-- Bulk Confirm Delivered for all pending -->
-            <?php if ($runSheet['stats']['pending'] > 0): ?>
-                <div class="w-full md:w-auto">
+            <!-- Action Buttons: Month Fill & Bulk Confirm -->
+            <div class="flex items-center gap-2 w-full md:w-auto">
+                <button type="button" @click="showMonthFillModal = true" class="tap-target px-4 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-black shadow-xs transition flex items-center justify-center gap-1.5 whitespace-nowrap">
+                    <span>📅 Month Fill</span>
+                </button>
+
+                <?php if ($runSheet['stats']['pending'] > 0): ?>
                     <form method="POST" action="<?= url('/deliveries/bulk-deliver') ?>" onsubmit="return confirm('Mark all <?= $runSheet['stats']['pending'] ?> pending houses <?= !empty($selectedRoute) ? 'in route ' . e($selectedRoute) : '' ?> as Delivered?');">
                         <?= \App\Core\Auth::csrfField() ?>
                         <input type="hidden" name="date" value="<?= e($date) ?>">
@@ -77,8 +81,8 @@
                             <span>✓ Mark <?= !empty($selectedRoute) ? e($selectedRoute) : 'All' ?> Delivered</span>
                         </button>
                     </form>
-                </div>
-            <?php endif; ?>
+                <?php endif; ?>
+            </div>
         </div>
 
         <!-- Search & Route Filter Bar -->
@@ -289,5 +293,109 @@
                 </div>
             </div>
         <?php endif; ?>
+    </div>
+
+    <!-- Month Fill Modal Dialog -->
+    <div x-show="showMonthFillModal" 
+         x-cloak 
+         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
+         @keydown.escape.window="showMonthFillModal = false">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4"
+             @click.outside="showMonthFillModal = false">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div class="flex items-center gap-2">
+                    <span class="text-2xl">📅</span>
+                    <div>
+                        <h3 class="text-base font-black text-slate-900">Whole-Month Bulk Auto-Fill</h3>
+                        <p class="text-xs text-slate-500">Auto-generate daily deliveries for the entire month</p>
+                    </div>
+                </div>
+                <button type="button" @click="showMonthFillModal = false" class="text-slate-400 hover:text-slate-600 font-bold text-lg p-1">
+                    ✕
+                </button>
+            </div>
+
+            <form method="POST" action="<?= url('/deliveries/month-fill') ?>" class="space-y-4">
+                <?= \App\Core\Auth::csrfField() ?>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Select Month</label>
+                        <select name="month" class="w-full text-xs font-bold px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white">
+                            <?php 
+                            $curM = (int)date('n', strtotime($date));
+                            $allMonths = [1=>'January', 2=>'February', 3=>'March', 4=>'April', 5=>'May', 6=>'June', 7=>'July', 8=>'August', 9=>'September', 10=>'October', 11=>'November', 12=>'December'];
+                            foreach ($allMonths as $mn => $mlabel): ?>
+                                <option value="<?= $mn ?>" <?= $mn === $curM ? 'selected' : '' ?>><?= $mlabel ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">Select Year</label>
+                        <select name="year" class="w-full text-xs font-bold px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white">
+                            <?php 
+                            $curY = (int)date('Y', strtotime($date));
+                            for ($y = date('Y') - 2; $y <= date('Y') + 2; $y++): ?>
+                                <option value="<?= $y ?>" <?= $y === $curY ? 'selected' : '' ?>><?= $y ?></option>
+                            <?php endfor; ?>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Target Route</label>
+                    <select name="route_name" class="w-full text-xs font-bold px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white">
+                        <option value="">All Routes (Entire Customer Base)</option>
+                        <?php foreach (($runSheet['routes'] ?? []) as $rName): ?>
+                            <option value="<?= e($rName) ?>" <?= $selectedRoute === $rName ? 'selected' : '' ?>>Route: <?= e($rName) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Delivery Shift</label>
+                    <select name="shift" class="w-full text-xs font-bold px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 bg-white">
+                        <option value="both" selected>Both Shifts (Morning & Evening)</option>
+                        <option value="morning">Morning Shift Only</option>
+                        <option value="evening">Evening Shift Only</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Conflict Strategy</label>
+                    <div class="space-y-2 mt-1">
+                        <label class="flex items-start gap-2.5 p-2.5 rounded-xl border border-blue-200 bg-blue-50/50 cursor-pointer">
+                            <input type="radio" name="overwrite" value="0" checked class="mt-0.5 text-blue-600 focus:ring-blue-500">
+                            <div>
+                                <span class="text-xs font-black text-slate-900 block">Preserve Existing (Recommended)</span>
+                                <span class="text-[11px] text-slate-500 block">Keeps manually logged/skipped days untouched; only fills blank/unrecorded days from subscription.</span>
+                            </div>
+                        </label>
+                        <label class="flex items-start gap-2.5 p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer">
+                            <input type="radio" name="overwrite" value="1" class="mt-0.5 text-blue-600 focus:ring-blue-500">
+                            <div>
+                                <span class="text-xs font-black text-slate-900 block">Overwrite All</span>
+                                <span class="text-[11px] text-slate-500 block">Recalculates and replaces all days in the month from active subscriptions.</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-800 flex items-start gap-2">
+                    <span class="text-base shrink-0">🏖️</span>
+                    <span><strong>Vacation Guard:</strong> Any customer on scheduled vacation during this month will automatically be logged with status <em>Leave</em> and <strong>0.00L</strong> billed!</span>
+                </div>
+
+                <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                    <button type="button" @click="showMonthFillModal = false" class="px-4 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100 transition">
+                        Cancel
+                    </button>
+                    <button type="submit" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow transition">
+                        🚀 Start Month Fill
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>

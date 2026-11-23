@@ -22,7 +22,10 @@ class ApiConstants {
   static const String deliveryToggle = '/deliveries/toggle';
   static const String deliveryEditQty = '/deliveries/edit-quantity';
   static const String deliveryBulk = '/deliveries/bulk-deliver';
+  static const String deliveryMonthFill = '/deliveries/month-fill';
   static const String deliverySummary = '/deliveries/summary';
+
+  static String customerMonthDeliveries(int id) => '/customers/$id/month-deliveries';
 
   static const String invoices = '/invoices';
   static const String invoiceBatch = '/invoices/generate-batch';

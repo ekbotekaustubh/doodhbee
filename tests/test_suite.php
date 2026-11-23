@@ -862,6 +862,158 @@ runTest("Staff Management & Delivery Rider RBAC Logic", function() use ($db) {
     }
 }, $passed, $failed);
 
+// TEST 17: Full-Month Bulk Auto-Fill & Vacation/Zero-Charge Guard
+runTest("Full-Month Bulk Auto-Fill: 1-Click Generation & Vacation Guard", function() use ($db) {
+    $deliveryService = new \App\Services\DeliveryService();
+    $tenantId = 1;
+    $year = 2026;
+    $month = 11; // November 2026 (30 days)
+
+    // Create a dedicated test customer for full-month testing
+    $route = $db->fetchOne("SELECT id, name FROM routes WHERE tenant_id = 1 LIMIT 1");
+    $db->execute(
+        "INSERT INTO customers (tenant_id, route_id, name, phone, address, status, milk_types)
+         VALUES (1, ?, 'Month Test Customer', '9888800001', 'Flat 101, Star Apts', 'active', 'cow,buffalo')",
+        [$route['id']]
+    );
+    $cId = (int)$db->fetchValue("SELECT LAST_INSERT_ID()");
+
+    // Add Cow and Buffalo subscriptions
+    $cowProd = $db->fetchOne("SELECT id FROM products WHERE tenant_id = 1 AND code = 'cow'");
+    $bufProd = $db->fetchOne("SELECT id FROM products WHERE tenant_id = 1 AND code = 'buffalo'");
+
+    $db->execute("INSERT INTO customer_subscriptions (tenant_id, customer_id, product_id, default_quantity, custom_rate, shift, is_active)
+                  VALUES (1, ?, ?, 1.50, 65.00, 'both', 1)", [$cId, $cowProd['id']]);
+    $db->execute("INSERT INTO customer_subscriptions (tenant_id, customer_id, product_id, default_quantity, custom_rate, shift, is_active)
+                  VALUES (1, ?, ?, 1.00, 80.00, 'morning', 1)", [$cId, $bufProd['id']]);
+
+    // Schedule vacation for days 10-12
+    $db->execute(
+        "INSERT INTO customer_leaves (tenant_id, customer_id, start_date, end_date, reason)
+         VALUES (1, ?, '2026-11-10', '2026-11-12', 'Family Trip')",
+        [$cId]
+    );
+
+    // 1. Run month fill with overwrite: true for this customer's route
+    $res = $deliveryService->fillMonthDeliveries($tenantId, $year, $month, [
+        'route_id' => (int)$route['id'],
+        'shift' => 'both',
+        'overwrite' => true,
+    ]);
+
+    if ($res['days_in_month'] !== 30 || $res['records_created'] < 30) {
+        throw new \Exception("Month fill did not generate expected records: " . json_encode($res));
+    }
+
+    // 2. Verify normal day (Nov 5) morning shift
+    $normDelivM = $db->fetchOne(
+        "SELECT * FROM daily_deliveries WHERE tenant_id = 1 AND customer_id = ? AND delivery_date = '2026-11-05' AND shift = 'morning'",
+        [$cId]
+    );
+    if (!$normDelivM || $normDelivM['status'] !== 'delivered' || (float)$normDelivM['quantity'] !== 2.50) {
+        throw new \Exception("Normal morning delivery mismatch: expected 2.50L delivered, got " . json_encode($normDelivM));
+    }
+
+    // Verify itemized products for Nov 5 morning (1.5L cow + 1.0L buffalo)
+    $itemsM = $db->fetchAll(
+        "SELECT * FROM daily_delivery_items WHERE delivery_id = ? ORDER BY product_id ASC",
+        [$normDelivM['id']]
+    );
+    if (count($itemsM) !== 2 || (float)$itemsM[0]['quantity'] !== 1.50 || (float)$itemsM[1]['quantity'] !== 1.00) {
+        throw new \Exception("Itemized line items mismatch for Nov 5: " . json_encode($itemsM));
+    }
+
+    // 3. Verify vacation day (Nov 11) morning shift: MUST be leave and strictly 0.00L
+    $leaveDeliv = $db->fetchOne(
+        "SELECT * FROM daily_deliveries WHERE tenant_id = 1 AND customer_id = ? AND delivery_date = '2026-11-11' AND shift = 'morning'",
+        [$cId]
+    );
+    if (!$leaveDeliv || $leaveDeliv['status'] !== 'leave' || (float)$leaveDeliv['quantity'] !== 0.00) {
+        throw new \Exception("Vacation guard failed: expected status leave and 0.00L, got " . json_encode($leaveDeliv));
+    }
+
+    // 4. Test Preserve Existing: modify Nov 15 quantity to 5.0L
+    $deliveryService->recordDelivery($tenantId, $cId, '2026-11-15', 'morning', 'delivered', 5.0, 'Custom party order');
+    
+    // Re-run month fill with overwrite: false
+    $resPreserve = $deliveryService->fillMonthDeliveries($tenantId, $year, $month, [
+        'route_id' => (int)$route['id'],
+        'shift' => 'both',
+        'overwrite' => false,
+    ]);
+
+    $checkNov15 = $db->fetchOne(
+        "SELECT * FROM daily_deliveries WHERE tenant_id = 1 AND customer_id = ? AND delivery_date = '2026-11-15' AND shift = 'morning'",
+        [$cId]
+    );
+    if ((float)$checkNov15['quantity'] !== 5.00) {
+        throw new \Exception("Preserve existing failed: custom record was overwritten! Got " . $checkNov15['quantity']);
+    }
+
+    // 5. Test single-customer month fill (fill only this specific customer)
+    $resSingle = $deliveryService->fillMonthDeliveries($tenantId, $year, $month, [
+        'customer_id' => $cId,
+        'shift' => 'both',
+        'overwrite' => true,
+    ]);
+    if ($resSingle['customers_processed'] !== 1) {
+        throw new \Exception("Expected exactly 1 customer processed, got " . $resSingle['customers_processed']);
+    }
+
+    // Cleanup
+    $db->execute("DELETE FROM daily_deliveries WHERE customer_id = ?", [$cId]);
+    $db->execute("DELETE FROM customer_leaves WHERE customer_id = ?", [$cId]);
+    $db->execute("DELETE FROM customer_subscriptions WHERE customer_id = ?", [$cId]);
+    $db->execute("DELETE FROM customers WHERE id = ?", [$cId]);
+}, $passed, $failed);
+
+// TEST 18: Customer Monthly Milk Card (1-31 Matrix)
+runTest("Customer Monthly Milk Card: Interactive Matrix & Upsert", function() use ($db) {
+    $deliveryService = new \App\Services\DeliveryService();
+    $tenantId = 1;
+    $year = 2026;
+    $month = 11;
+
+    // Use an existing seeded customer
+    $cust = $db->fetchOne("SELECT id, name FROM customers WHERE tenant_id = 1 LIMIT 1");
+    $cId = (int)$cust['id'];
+
+    // 1. Fetch Month Sheet
+    $sheet = $deliveryService->getCustomerMonthSheet($tenantId, $cId, $year, $month);
+    if ($sheet['days_in_month'] !== 30 || count($sheet['days']) !== 30 || empty($sheet['summary'])) {
+        throw new \Exception("Invalid customer month sheet returned: " . json_encode($sheet));
+    }
+
+    // 2. Save Milk Card changes for Days 1 and 2
+    $updateData = [
+        [
+            'date' => '2026-11-01',
+            'shift' => 'morning',
+            'status' => 'delivered',
+            'quantity' => 3.5,
+            'notes' => 'Extra 1.5L requested'
+        ],
+        [
+            'date' => '2026-11-02',
+            'shift' => 'morning',
+            'status' => 'skipped',
+            'quantity' => 0.0,
+            'notes' => 'Customer skipped'
+        ]
+    ];
+
+    $updatedSheet = $deliveryService->saveCustomerMonthSheet($tenantId, $cId, $year, $month, $updateData);
+    $day1 = $updatedSheet['days'][0];
+    $day2 = $updatedSheet['days'][1];
+
+    if ($day1['shifts']['morning']['status'] !== 'delivered' || (float)$day1['shifts']['morning']['quantity'] !== 3.5) {
+        throw new \Exception("Day 1 update failed: " . json_encode($day1));
+    }
+    if ($day2['shifts']['morning']['status'] !== 'skipped' || (float)$day2['shifts']['morning']['quantity'] !== 0.0) {
+        throw new \Exception("Day 2 zero-charge skip failed: " . json_encode($day2));
+    }
+}, $passed, $failed);
+
 echo "\n========================================================\n";
 echo "   TEST RESULTS: {$passed} PASSED, {$failed} FAILED\n";
 echo "========================================================\n";

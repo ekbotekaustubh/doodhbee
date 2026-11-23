@@ -230,4 +230,39 @@ final class DeliveryApiController extends ApiBaseController
             'total_liters_today' => round(((float)$morningStats['total_liters']) + ((float)$eveningStats['total_liters']), 2),
         ]);
     }
+
+    public function monthFill(Request $request): void
+    {
+        $tenantId = $this->tenantId();
+        $year = (int)$request->input('year', date('Y'));
+        $month = (int)$request->input('month', date('n'));
+        $route = $request->input('route_id', $request->input('route', null));
+        $customerId = $request->input('customer_id') !== null && $request->input('customer_id') !== '' ? (int)$request->input('customer_id') : null;
+        $shift = (string)$request->input('shift', 'both');
+        $overwrite = (bool)$request->input('overwrite', false);
+
+        if ($year < 2000 || $year > 2100) {
+            $this->jsonError('Invalid year parameter.', 422, 'VALIDATION_ERROR');
+        }
+        if ($month < 1 || $month > 12) {
+            $this->jsonError('Invalid month parameter.', 422, 'VALIDATION_ERROR');
+        }
+
+        try {
+            $result = $this->deliveryService->fillMonthDeliveries($tenantId, $year, $month, [
+                'route_id' => $route,
+                'customer_id' => $customerId,
+                'shift' => $shift,
+                'overwrite' => $overwrite,
+            ]);
+        } catch (\InvalidArgumentException $e) {
+            $this->jsonError($e->getMessage(), 422, 'VALIDATION_ERROR');
+            return;
+        } catch (\Throwable $e) {
+            $this->jsonError('Failed to auto-fill month deliveries: ' . $e->getMessage(), 500, 'SERVER_ERROR');
+            return;
+        }
+
+        $this->jsonSuccess($result, "Successfully generated month deliveries.");
+    }
 }

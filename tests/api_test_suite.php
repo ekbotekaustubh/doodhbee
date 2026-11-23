@@ -959,6 +959,89 @@ runApiTest("Delivery Rider Login & RBAC Enforcement (/api/deliveries vs /api/inv
     }
 }, $passed, $failed);
 
+// ==========================================
+// TEST 19: Full-Month Deliveries & Customer Milk Card API
+// ==========================================
+runApiTest("API Deliveries: Whole-Month Bulk Fill & Customer Milk Card API", function() use (&$tenantToken, &$newCustomerId) {
+    // 1. Month Fill API
+    $fillRes = callApi('POST', '/api/deliveries/month-fill', [
+        'year' => 2026,
+        'month' => 11,
+        'shift' => 'both',
+        'overwrite' => true,
+    ], $tenantToken);
+
+    if ($fillRes['status'] !== 200 || empty($fillRes['body']['success'])) {
+        throw new \Exception("Month fill API failed: " . json_encode($fillRes));
+    }
+    $fillData = $fillRes['body']['data'];
+    if ($fillData['days_in_month'] !== 30 || $fillData['records_created'] <= 0) {
+        throw new \Exception("Month fill API unexpected response: " . json_encode($fillData));
+    }
+
+    // 1b. Single-Customer Month Fill API
+    $fillCustRes = callApi('POST', '/api/deliveries/month-fill', [
+        'customer_id' => $newCustomerId,
+        'year' => 2026,
+        'month' => 11,
+        'shift' => 'both',
+        'overwrite' => true,
+    ], $tenantToken);
+    if ($fillCustRes['status'] !== 200 || $fillCustRes['body']['data']['customers_processed'] !== 1) {
+        throw new \Exception("Single customer month fill API failed: " . json_encode($fillCustRes));
+    }
+
+    // 2. Customer Month Deliveries Grid (GET)
+    $gridRes = callApi('GET', "/api/customers/{$newCustomerId}/month-deliveries?year=2026&month=11", [], $tenantToken);
+    if ($gridRes['status'] !== 200 || empty($gridRes['body']['success'])) {
+        throw new \Exception("Customer month deliveries GET failed: " . json_encode($gridRes));
+    }
+    $gridData = $gridRes['body']['data'];
+    if (count($gridData['days']) !== 30 || empty($gridData['summary'])) {
+        throw new \Exception("Customer grid data format invalid: " . json_encode($gridData));
+    }
+
+    // 3. Customer Month Deliveries Save (POST)
+    $saveRes = callApi('POST', "/api/customers/{$newCustomerId}/month-deliveries", [
+        'year' => 2026,
+        'month' => 11,
+        'days' => [
+            [
+                'date' => '2026-11-05',
+                'shift' => 'morning',
+                'status' => 'delivered',
+                'quantity' => 4.0,
+                'notes' => 'API Card Update'
+            ],
+            [
+                'date' => '2026-11-06',
+                'shift' => 'morning',
+                'status' => 'skipped',
+                'quantity' => 0.0,
+                'notes' => 'API Skipped'
+            ]
+        ]
+    ], $tenantToken);
+
+    if ($saveRes['status'] !== 200 || empty($saveRes['body']['success'])) {
+        throw new \Exception("Customer month deliveries POST failed: " . json_encode($saveRes));
+    }
+
+    $savedDays = $saveRes['body']['data']['days'];
+    $day5 = null;
+    $day6 = null;
+    foreach ($savedDays as $sd) {
+        if ($sd['date'] === '2026-11-05') $day5 = $sd;
+        if ($sd['date'] === '2026-11-06') $day6 = $sd;
+    }
+    if (!$day5 || (float)$day5['shifts']['morning']['quantity'] !== 4.0) {
+        throw new \Exception("Day 5 quantity not saved properly via API: " . json_encode($day5));
+    }
+    if (!$day6 || (float)$day6['shifts']['morning']['quantity'] !== 0.0 || $day6['shifts']['morning']['status'] !== 'skipped') {
+        throw new \Exception("Day 6 zero-charge skip not saved properly via API: " . json_encode($day6));
+    }
+}, $passed, $failed);
+
 // Clean up test customer and test product
 if ($newCustomerId > 0) {
     $db->execute("DELETE FROM customers WHERE id = ?", [$newCustomerId]);

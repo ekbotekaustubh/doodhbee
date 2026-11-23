@@ -506,4 +506,85 @@ final class CustomerController
 
         Response::redirect(url('/customers'));
     }
+
+    public function milkCardView(Request $request, array $params): void
+    {
+        $customerId = (int)($params['id'] ?? 0);
+        $year = (int)$request->get('year', date('Y'));
+        $month = (int)$request->get('month', date('n'));
+
+        if ($year < 2000 || $year > 2100) $year = (int)date('Y');
+        if ($month < 1 || $month > 12) $month = (int)date('n');
+
+        $res = ApiClient::get("/api/customers/{$customerId}/month-deliveries", [
+            'year' => $year,
+            'month' => $month,
+        ]);
+
+        if (empty($res['success']) || empty($res['data'])) {
+            Auth::flash('error', $res['error'] ?? 'Customer not found.');
+            Response::redirect(url('/customers'));
+            return;
+        }
+
+        View::render('customers/milk_card', [
+            'sheet' => $res['data'],
+            'customer' => $res['data']['customer'] ?? [],
+            'year' => $year,
+            'month' => $month,
+            'success' => Auth::flash('success'),
+            'error' => Auth::flash('error'),
+        ], 'main');
+    }
+
+    public function saveMilkCard(Request $request, array $params): void
+    {
+        $customerId = (int)($params['id'] ?? 0);
+        $year = (int)$request->post('year', date('Y'));
+        $month = (int)$request->post('month', date('n'));
+        $rawDays = $request->post('days', []);
+
+        // Structure raw form post into array of day records
+        $daysData = [];
+        if (is_array($rawDays)) {
+            foreach ($rawDays as $date => $shifts) {
+                if (!is_array($shifts)) continue;
+                foreach ($shifts as $shift => $info) {
+                    $status = (string)($info['status'] ?? 'delivered');
+                    $qty = isset($info['quantity']) ? (float)$info['quantity'] : null;
+                    $notes = (string)($info['notes'] ?? '');
+                    $productItems = $info['products'] ?? null;
+
+                    $daysData[] = [
+                        'date' => $date,
+                        'shift' => $shift,
+                        'status' => $status,
+                        'quantity' => $qty,
+                        'notes' => $notes,
+                        'product_items' => $productItems,
+                    ];
+                }
+            }
+        }
+
+        $res = ApiClient::post("/api/customers/{$customerId}/month-deliveries", [
+            'year' => $year,
+            'month' => $month,
+            'days' => $daysData,
+        ]);
+
+        if (!empty($res['success'])) {
+            if ($request->isAjax()) {
+                Response::json(['success' => true, 'message' => 'Monthly milk card updated successfully.']);
+            }
+            Auth::flash('success', 'Monthly milk card saved successfully.');
+        } else {
+            if ($request->isAjax()) {
+                Response::json(['success' => false, 'error' => $res['error'] ?? 'Failed to save card.'], 400);
+            }
+            Auth::flash('error', $res['error'] ?? 'Failed to save milk card.');
+        }
+
+        Response::redirect(url("/customers/{$customerId}/milk-card?year={$year}&month={$month}"));
+    }
 }

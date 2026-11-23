@@ -5,6 +5,7 @@ import '../models/customer.dart';
 import 'customer_form_screen.dart';
 import 'customer_leave_screen.dart';
 import 'customer_ledger_screen.dart';
+import 'customer_milk_card_screen.dart';
 import 'subscription_screen.dart';
 
 class CustomerListScreen extends StatefulWidget {
@@ -176,9 +177,20 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                                         context,
                                         MaterialPageRoute(builder: (_) => CustomerLedgerScreen(customerId: c.id, customerName: c.name)),
                                       );
+                                    } else if (val == 'milk_card') {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => CustomerMilkCardScreen(
+                                            customerId: c.id,
+                                            customerName: c.name,
+                                          ),
+                                        ),
+                                      );
                                     }
                                   },
                                   itemBuilder: (_) => [
+                                    const PopupMenuItem(value: 'milk_card', child: Text('📅 Monthly Milk Card (1–31)')),
                                     const PopupMenuItem(value: 'edit', child: Text('✏️ Edit Profile')),
                                     const PopupMenuItem(value: 'ledger', child: Text('📜 Customer Ledger')),
                                     const PopupMenuItem(value: 'vacation', child: Text('🏖 Vacation / Pause')),

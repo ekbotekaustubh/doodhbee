@@ -170,6 +170,9 @@
 
                     <!-- Actions -->
                     <div class="flex items-center gap-2 self-end md:self-center">
+                        <a href="<?= url("/customers/{$c['id']}/milk-card") ?>" class="tap-target px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold border border-blue-200 transition flex items-center gap-1 shadow-sm">
+                            <span>📅 Milk Card</span>
+                        </a>
                         <a href="<?= url("/customers/{$c['id']}/edit") ?>" class="tap-target px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-300 transition flex items-center gap-1 shadow-sm">
                             <span>✏️ Edit & Vacations</span>
                         </a>

@@ -231,4 +231,42 @@ final class DeliveryController
             'pending_alert' => $res['data']['pending_alert'] ?? null,
         ]);
     }
+
+    public function monthFill(Request $request): void
+    {
+        $year = (int)$request->post('year', date('Y'));
+        $month = (int)$request->post('month', date('n'));
+        $route = (string)$request->post('route_name', '');
+        $customerId = $request->post('customer_id') !== null && $request->post('customer_id') !== '' ? (int)$request->post('customer_id') : null;
+        $shift = (string)$request->post('shift', 'both');
+        $overwrite = (bool)$request->post('overwrite', 0);
+
+        $apiRes = ApiClient::post('/api/deliveries/month-fill', [
+            'year' => $year,
+            'month' => $month,
+            'route' => $route,
+            'customer_id' => $customerId,
+            'shift' => $shift,
+            'overwrite' => $overwrite,
+        ]);
+
+        if (!empty($apiRes['success'])) {
+            $data = $apiRes['data'] ?? [];
+            $created = $data['records_created'] ?? 0;
+            $skipped = $data['records_skipped'] ?? 0;
+            $litres = $data['total_litres'] ?? 0;
+            $monthName = date('F Y', strtotime("{$year}-{$month}-01"));
+            Auth::flash('success', "Full-Month Auto-Fill for {$monthName} complete! {$created} deliveries logged ({$litres}L total), {$skipped} preserved.");
+        } else {
+            Auth::flash('error', $apiRes['error'] ?? 'Failed to generate monthly deliveries.');
+        }
+
+        if ($customerId !== null && $customerId > 0) {
+            Response::redirect(url("/customers/{$customerId}/milk-card?year={$year}&month={$month}"));
+            return;
+        }
+
+        $date = sprintf('%04d-%02d-01', $year, $month);
+        Response::redirect(url("/deliveries?date={$date}&shift=morning" . (!empty($route) ? '&route=' . urlencode($route) : '')));
+    }
 }

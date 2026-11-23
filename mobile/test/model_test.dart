@@ -298,5 +298,10 @@ void main() {
     test('Production defaultBaseUrl matches https://www.doodhbee.com/api', () {
       expect(ApiConstants.defaultBaseUrl, 'https://www.doodhbee.com/api');
     });
+
+    test('Month-fill and customer month-deliveries endpoints are defined', () {
+      expect(ApiConstants.deliveryMonthFill, '/deliveries/month-fill');
+      expect(ApiConstants.customerMonthDeliveries(42), '/customers/42/month-deliveries');
+    });
   });
 }

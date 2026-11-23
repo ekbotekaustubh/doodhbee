@@ -27,7 +27,8 @@ foreach ($settings as $k => $v) {
 
 // 2. Super Admin
 $adminPassword = password_hash('admin123', PASSWORD_BCRYPT);
-$pdo->prepare("INSERT IGNORE INTO super_admins (id, name, email, password_hash) VALUES (1, 'DoodhBee Platform Admin', 'admin@doodhbee.com', ?)")
+$pdo->prepare("INSERT INTO super_admins (id, name, email, password_hash) VALUES (1, 'DoodhBee Platform Admin', 'admin@doodhbee.com', ?)
+    ON DUPLICATE KEY UPDATE email = 'admin@doodhbee.com', password_hash = VALUES(password_hash)")
     ->execute([$adminPassword]);
 
 // 3. Tenant 1: Krishna Pure Milk Dairy

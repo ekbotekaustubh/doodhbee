@@ -5,6 +5,7 @@ namespace App\Controllers\Api;
 
 use App\Core\Auth;
 use App\Core\Request;
+use App\Services\DeliveryService;
 use App\Services\ProductService;
 use App\Services\QuotaService;
 use App\Services\RouteService;
@@ -14,6 +15,7 @@ final class CustomerApiController extends ApiBaseController
     private QuotaService $quotaService;
     private ProductService $productService;
     private RouteService $routeService;
+    private DeliveryService $deliveryService;
 
     public function __construct()
     {
@@ -21,6 +23,7 @@ final class CustomerApiController extends ApiBaseController
         $this->quotaService = new QuotaService();
         $this->productService = new ProductService();
         $this->routeService = new RouteService();
+        $this->deliveryService = new DeliveryService();
     }
 
     public function index(Request $request): void
@@ -446,5 +449,64 @@ final class CustomerApiController extends ApiBaseController
         $routes = $this->routeService->getTenantRoutes($tenantId, true);
         $list = array_column($routes, 'name');
         $this->jsonSuccess($list);
+    }
+
+    public function monthDeliveries(Request $request, array $params): void
+    {
+        $tenantId = $this->tenantId();
+        $customerId = (int)($params['id'] ?? 0);
+        $year = (int)$request->get('year', date('Y'));
+        $month = (int)$request->get('month', date('n'));
+
+        if ($year < 2000 || $year > 2100) {
+            $this->jsonError('Invalid year parameter.', 422, 'VALIDATION_ERROR');
+            return;
+        }
+        if ($month < 1 || $month > 12) {
+            $this->jsonError('Invalid month parameter.', 422, 'VALIDATION_ERROR');
+            return;
+        }
+
+        try {
+            $sheet = $this->deliveryService->getCustomerMonthSheet($tenantId, $customerId, $year, $month);
+        } catch (\InvalidArgumentException $e) {
+            $this->jsonError($e->getMessage(), 404, 'NOT_FOUND');
+            return;
+        } catch (\Throwable $e) {
+            $this->jsonError('Failed to fetch customer month deliveries: ' . $e->getMessage(), 500, 'SERVER_ERROR');
+            return;
+        }
+
+        $this->jsonSuccess($sheet);
+    }
+
+    public function saveMonthDeliveries(Request $request, array $params): void
+    {
+        $tenantId = $this->tenantId();
+        $customerId = (int)($params['id'] ?? 0);
+        $year = (int)$request->input('year', date('Y'));
+        $month = (int)$request->input('month', date('n'));
+        $days = (array)$request->input('days', []);
+
+        if ($year < 2000 || $year > 2100) {
+            $this->jsonError('Invalid year parameter.', 422, 'VALIDATION_ERROR');
+            return;
+        }
+        if ($month < 1 || $month > 12) {
+            $this->jsonError('Invalid month parameter.', 422, 'VALIDATION_ERROR');
+            return;
+        }
+
+        try {
+            $sheet = $this->deliveryService->saveCustomerMonthSheet($tenantId, $customerId, $year, $month, $days);
+        } catch (\InvalidArgumentException $e) {
+            $this->jsonError($e->getMessage(), 404, 'NOT_FOUND');
+            return;
+        } catch (\Throwable $e) {
+            $this->jsonError('Failed to save customer month deliveries: ' . $e->getMessage(), 500, 'SERVER_ERROR');
+            return;
+        }
+
+        $this->jsonSuccess($sheet, 'Customer monthly milk card updated successfully.');
     }
 }
