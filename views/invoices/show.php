@@ -17,9 +17,19 @@
                 </button>
             </form>
 
-            <!-- WhatsApp Share Button -->
-            <a href="<?= url("/invoices/{$invoice['id']}/whatsapp") ?>" target="_blank" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-sm flex items-center gap-1.5 transition" title="Send pre-filled bill via WhatsApp">
-                <span>💬 WhatsApp Bill</span>
+            <!-- Direct WhatsApp PDF Send (Cron / Meta Cloud API Engine) -->
+            <form method="POST" action="<?= url("/invoices/{$invoice['id']}/whatsapp-send") ?>" class="inline" x-data="{ sending: false }" @submit="sending = true">
+                <?= \App\Core\Auth::csrfField() ?>
+                <input type="hidden" name="provider" value="meta_cloud">
+                <button type="submit" :disabled="sending" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-black shadow-sm flex items-center gap-1.5 transition" title="Send Bill PDF directly as WhatsApp document attachment using Meta Cloud API engine">
+                    <span x-show="!sending">📄 Send WhatsApp PDF</span>
+                    <span x-show="sending">⏳ Sending PDF...</span>
+                </button>
+            </form>
+
+            <!-- WhatsApp Web Click-to-Chat Fallback -->
+            <a href="<?= url("/invoices/{$invoice['id']}/whatsapp") ?>" target="_blank" class="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl text-xs font-bold border border-emerald-300 flex items-center gap-1.5 transition" title="Open Click-to-Chat in WhatsApp Web / App">
+                <span>💬 WhatsApp Web</span>
             </a>
 
             <!-- Record Payment Button -->
@@ -71,6 +81,24 @@
                 <div class="text-xs text-slate-400 font-mono mt-2">Invoice #INV-<?= $invoice['billing_year'] ?>-<?= sprintf('%02d', $invoice['billing_month']) ?>-<?= sprintf('%04d', $invoice['id']) ?></div>
                 <div class="text-xs text-slate-500 mt-0.5">Billing Month: <strong><?= date('F Y', mktime(0, 0, 0, (int)$invoice['billing_month'], 10, (int)$invoice['billing_year'])) ?></strong></div>
                 <div class="text-xs text-slate-400 mt-0.5">Generated: <?= formatDate($invoice['generated_at'], 'd M Y, h:i A') ?></div>
+                <?php if (!empty($whatsappMessage)): ?>
+                    <div class="mt-2">
+                        <?php if ($whatsappMessage['status'] === 'sent'): ?>
+                            <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                <span>✓ WhatsApp PDF Sent</span>
+                                <span class="text-[10px] text-emerald-600 font-normal"><?= !empty($whatsappMessage['sent_at']) ? date('d M, h:i A', strtotime($whatsappMessage['sent_at'])) : '' ?></span>
+                            </span>
+                        <?php elseif ($whatsappMessage['status'] === 'failed'): ?>
+                            <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-200" title="<?= e($whatsappMessage['error_message'] ?? '') ?>">
+                                <span>⚠️ WhatsApp Failed</span>
+                            </span>
+                        <?php elseif ($whatsappMessage['status'] === 'pending' || $whatsappMessage['status'] === 'processing'): ?>
+                            <span class="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                                <span>⏳ WhatsApp Queued</span>
+                            </span>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
 

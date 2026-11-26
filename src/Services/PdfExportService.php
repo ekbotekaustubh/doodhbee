@@ -8,7 +8,7 @@ use Dompdf\Options;
 
 final class PdfExportService
 {
-    public static function streamPdf(string $html, string $filename, string $paper = 'A4', string $orientation = 'portrait'): void
+    public static function buildDompdf(string $html, string $paper = 'A4', string $orientation = 'portrait'): Dompdf
     {
         $projectRoot = realpath(__DIR__ . '/../../') ?: dirname(__DIR__, 2);
         $publicDir = $projectRoot . '/public';
@@ -19,23 +19,32 @@ final class PdfExportService
         $options->set('defaultFont', 'DejaVu Sans');
         $options->set('chroot', array_filter([$projectRoot, $publicDir]));
 
-        // Ensure all local images are converted to base64 data URIs for 100% reliable Dompdf rendering
         $html = self::inlineLocalImages($html, $projectRoot);
 
         $dompdf = new Dompdf($options);
         $dompdf->loadHtml($html);
 
         if ($paper === 'thermal80') {
-            // 80mm width = ~226.77 points, height 800pt
             $dompdf->setPaper([0, 0, 226.77, 850], 'portrait');
         } elseif ($paper === 'thermal58') {
-            // 58mm width = ~164.4 points, height 800pt
             $dompdf->setPaper([0, 0, 164.4, 850], 'portrait');
         } else {
             $dompdf->setPaper($paper, $orientation);
         }
 
         $dompdf->render();
+        return $dompdf;
+    }
+
+    public static function renderPdfBytes(string $html, string $paper = 'A4', string $orientation = 'portrait'): string
+    {
+        $dompdf = self::buildDompdf($html, $paper, $orientation);
+        return $dompdf->output();
+    }
+
+    public static function streamPdf(string $html, string $filename, string $paper = 'A4', string $orientation = 'portrait'): void
+    {
+        $dompdf = self::buildDompdf($html, $paper, $orientation);
         $dompdf->stream($filename, ['Attachment' => false]);
         exit;
     }
@@ -51,13 +60,11 @@ final class PdfExportService
             $src = $matches[3];
             $suffix = $matches[4];
 
-            // Already a data URI or external URL
             if (str_starts_with($src, 'data:') || str_starts_with($src, 'http://') || str_starts_with($src, 'https://')) {
                 return $matches[0];
             }
 
             $clean = ltrim($src, '/');
-            // Remove application subfolder if present (e.g. doodhbee/public/...)
             if (str_starts_with($clean, 'doodhbee/')) {
                 $clean = substr($clean, 9);
             }

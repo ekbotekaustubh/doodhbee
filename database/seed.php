@@ -14,6 +14,15 @@ $settings = [
     'free_customer_limit' => '5',
     'paid_tier_unit_size' => '100',
     'paid_tier_unit_price' => '200.00',
+    'paid_tier_monthly_price' => '200.00',
+    'paid_tier_yearly_price' => '2000.00',
+    'subscription_grace_days' => '7',
+    'subscription_gst_enabled' => '1',
+    'subscription_gst_percentage' => '18.00',
+    'company_legal_name' => 'Shri Ram Open Source Technologies',
+    'company_gstin' => '27AARPE1865G1ZJ',
+    'company_sac_code' => '998314',
+    'company_address' => 'Maharashtra, India',
     'currency_symbol' => '₹',
     'platform_name' => 'DoodhBee SaaS',
     'support_email' => 'support@doodhbee.com',
@@ -23,6 +32,24 @@ $settings = [
 $stmt = $pdo->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
 foreach ($settings as $k => $v) {
     $stmt->execute([$k, $v]);
+}
+
+// 1b. Subscription Plans
+$plans = [
+    [1, 'free', 'Free', 'Up to 5 active customers free forever', 5, 0.00, 0.00, 1, 1, 1],
+    [2, 'starter', 'Starter', 'Ideal for growing milk routes up to 100 customers', 100, 200.00, 2000.00, 0, 1, 2],
+    [3, 'growth', 'Growth', 'For established dairies up to 300 active customers', 300, 500.00, 5000.00, 0, 1, 3],
+    [4, 'pro', 'Pro', 'High-volume dairy operations up to 1,000 customers', 1000, 1200.00, 12000.00, 0, 1, 4],
+];
+$planStmt = $pdo->prepare(
+    "INSERT INTO subscription_plans (id, code, name, description, customer_limit, monthly_price, yearly_price, is_free, is_active, sort_order)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE name = VALUES(name), description = VALUES(description), customer_limit = VALUES(customer_limit),
+         monthly_price = VALUES(monthly_price), yearly_price = VALUES(yearly_price), is_free = VALUES(is_free),
+         is_active = VALUES(is_active), sort_order = VALUES(sort_order)"
+);
+foreach ($plans as $p) {
+    $planStmt->execute($p);
 }
 
 // 2. Super Admin
@@ -56,10 +83,10 @@ foreach ($charges as $c) {
     $chargeStmt->execute($c);
 }
 
-// Tenant 1 Subscription (Active Paid Tier - 1 block = 105 max customers)
-$pdo->prepare("INSERT INTO tenant_subscriptions (id, tenant_id, purchased_blocks, max_customers_allowed, amount_paid, valid_until, payment_status)
-    VALUES (1, 1, 1, 105, 200.00, '2027-12-31', 'active')
-    ON DUPLICATE KEY UPDATE purchased_blocks = 1, max_customers_allowed = 105, payment_status = 'active'")
+// Tenant 1 Subscription (Active Paid Tier - Starter plan = 100 max customers)
+$pdo->prepare("INSERT INTO tenant_subscriptions (id, tenant_id, plan_id, purchased_blocks, max_customers_allowed, amount_paid, billing_cycle, started_at, valid_until, payment_status)
+    VALUES (1, 1, 2, 1, 100, 2000.00, 'yearly', CURDATE(), '2027-12-31', 'active')
+    ON DUPLICATE KEY UPDATE plan_id = 2, purchased_blocks = 1, max_customers_allowed = 100, billing_cycle = 'yearly', valid_until = '2027-12-31', payment_status = 'active'")
     ->execute();
 
 // 4. Tenant 2: Radha Cow Dairy (Free Tier Demo: 4 customers, near quota limit of 5)
@@ -73,9 +100,9 @@ $pdo->prepare("INSERT INTO tenant_settings (tenant_id, tax_enabled, tax_label, t
     ON DUPLICATE KEY UPDATE tax_enabled = 0")
     ->execute();
 
-$pdo->prepare("INSERT INTO tenant_subscriptions (id, tenant_id, purchased_blocks, max_customers_allowed, amount_paid, valid_until, payment_status)
-    VALUES (2, 2, 0, 5, 0.00, NULL, 'free')
-    ON DUPLICATE KEY UPDATE max_customers_allowed = 5, payment_status = 'free'")
+$pdo->prepare("INSERT INTO tenant_subscriptions (id, tenant_id, plan_id, purchased_blocks, max_customers_allowed, amount_paid, valid_until, payment_status)
+    VALUES (2, 2, 1, 0, 5, 0.00, NULL, 'free')
+    ON DUPLICATE KEY UPDATE plan_id = 1, max_customers_allowed = 5, payment_status = 'free'")
     ->execute();
 
 // 4. Products & Catalog for Tenants (Approach A: Normalized Multi-Product Architecture)

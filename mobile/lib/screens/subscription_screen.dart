@@ -13,11 +13,12 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   final ApiClient _api = ApiClient();
 
   Map<String, dynamic>? _quota;
-  Map<String, dynamic>? _pricing;
+  List<dynamic> _plans = [];
   bool _isLoading = true;
   bool _isUpgrading = false;
   String? _errorMessage;
-  int _selectedBlocks = 1;
+  int? _selectedPlanId;
+  String _selectedCycle = 'monthly';
 
   @override
   void initState() {
@@ -34,9 +35,37 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     final res = await _api.get(ApiConstants.subscription);
 
     if (res.success && res.data != null) {
+      final quota = res.data['quota'] as Map<String, dynamic>?;
+      final allPlans = (res.data['plans'] as List?) ?? [];
+      final paidPlans = allPlans.where((p) => p['is_free'] != true).toList();
+      final currentCycle = quota?['billing_cycle']?.toString();
+      final cycle = (currentCycle == 'yearly') ? 'yearly' : 'monthly';
+      final currentPlanId = (quota?['plan_id'] as num?)?.toInt();
+
+      int? defaultPid;
+      for (final p in paidPlans) {
+        final pid = (p['id'] as num?)?.toInt();
+        final allowed = p['previews']?[cycle]?['allowed'] == true;
+        if (pid == currentPlanId && allowed) {
+          defaultPid = pid;
+          break;
+        }
+      }
+      if (defaultPid == null) {
+        for (final p in paidPlans) {
+          if (p['previews']?[cycle]?['allowed'] == true) {
+            defaultPid = (p['id'] as num?)?.toInt();
+            break;
+          }
+        }
+      }
+      defaultPid ??= paidPlans.isNotEmpty ? (paidPlans.first['id'] as num?)?.toInt() : null;
+
       setState(() {
-        _quota = res.data['quota'];
-        _pricing = res.data['pricing'];
+        _quota = quota;
+        _plans = paidPlans;
+        _selectedCycle = cycle;
+        _selectedPlanId = defaultPid;
         _isLoading = false;
       });
     } else {
@@ -47,25 +76,78 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     }
   }
 
-  Future<void> _upgradeQuota() async {
-    final unitPrice = (_pricing?['paid_tier_unit_price'] as num?)?.toDouble() ?? 199.0;
-    final unitSize = (_pricing?['paid_tier_unit_size'] as num?)?.toInt() ?? 100;
-    final totalAmount = _selectedBlocks * unitPrice;
-    final totalSlots = _selectedBlocks * unitSize;
+  Map<String, dynamic>? _selectedPlan() {
+    if (_selectedPlanId == null) return null;
+    for (final p in _plans) {
+      if ((p['id'] as num?)?.toInt() == _selectedPlanId && p is Map<String, dynamic>) {
+        return p;
+      }
+    }
+    return null;
+  }
+
+  Map<String, dynamic>? _previewFor(dynamic plan, String cycle) {
+    final previews = plan['previews'];
+    if (previews is Map && previews[cycle] is Map) {
+      return Map<String, dynamic>.from(previews[cycle] as Map);
+    }
+    return null;
+  }
+
+  void _selectCycle(String cycle) {
+    int? nextPlanId = _selectedPlanId;
+    final currentSel = _selectedPlan();
+    if (currentSel == null || _previewFor(currentSel, cycle)?['allowed'] != true) {
+      for (final p in _plans) {
+        if (_previewFor(p, cycle)?['allowed'] == true) {
+          nextPlanId = (p['id'] as num?)?.toInt();
+          break;
+        }
+      }
+    }
+    setState(() {
+      _selectedCycle = cycle;
+      _selectedPlanId = nextPlanId;
+    });
+  }
+
+  Future<void> _activatePlan() async {
+    final plan = _selectedPlan();
+    if (plan == null) return;
+    final preview = _previewFor(plan, _selectedCycle);
+    if (preview == null || preview['allowed'] != true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(preview?['reason']?.toString() ?? 'This plan selection is unavailable.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final amount = (preview['amount'] as num?)?.toDouble() ?? 0.0;
+    final baseAmount = (preview['base_amount'] as num?)?.toDouble() ?? amount;
+    final gstAmount = (preview['gst_amount'] as num?)?.toDouble() ?? 0.0;
+    final gstPct = (preview['gst_percentage'] as num?)?.toDouble() ?? 0.0;
+    final planName = plan['name']?.toString() ?? 'Plan';
+    final cycleLabel = _selectedCycle == 'yearly' ? 'Yearly' : 'Monthly';
+    final note = preview['note']?.toString() ?? '';
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Confirm Quota Upgrade'),
+        title: Text('Confirm $planName ($cycleLabel)'),
         content: Text(
-          'Upgrade your account by +$_selectedBlocks block(s) (+$totalSlots customer capacity) for ₹${totalAmount.toStringAsFixed(0)}?',
+          gstPct > 0
+              ? 'Base: ₹${baseAmount.toStringAsFixed(2)}\nGST (${gstPct.toStringAsFixed(0)}%): ₹${gstAmount.toStringAsFixed(2)}\nTotal Payable: ₹${amount.toStringAsFixed(2)}\n\n$note'
+              : 'Pay ₹${amount.toStringAsFixed(2)}?\n\n$note',
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF16A34A)),
-            child: const Text('Confirm Upgrade'),
+            child: const Text('Confirm'),
           ),
         ],
       ),
@@ -76,7 +158,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     setState(() => _isUpgrading = true);
 
     final res = await _api.post('${ApiConstants.subscription}/upgrade', data: {
-      'blocks': _selectedBlocks,
+      'plan_id': _selectedPlanId,
+      'billing_cycle': _selectedCycle,
     });
 
     setState(() => _isUpgrading = false);
@@ -86,7 +169,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     if (res.success) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(res.message ?? 'Quota upgraded successfully!'),
+          content: Text(res.message ?? 'Plan updated successfully!'),
           backgroundColor: const Color(0xFF15803D),
         ),
       );
@@ -94,7 +177,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(res.error ?? 'Upgrade failed. Please try again.'),
+          content: Text(res.error ?? 'Failed to update plan. Please try again.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -105,22 +188,30 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Scaffold(
-        appBar: AppBar(title: const Text('⚡ Quota & Subscription')),
+        appBar: AppBar(title: const Text('⚡ Plans & Subscription')),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
 
-    final activeCount = _quota?['active_customers'] ?? 0;
-    final maxAllowed = _quota?['max_allowed'] ?? 5;
-    final isPaid = _quota?['payment_status'] == 'active';
-    final purchasedBlocks = _quota?['purchased_blocks'] ?? 0;
-    final unitPrice = (_pricing?['paid_tier_unit_price'] as num?)?.toDouble() ?? 199.0;
-    final unitSize = (_pricing?['paid_tier_unit_size'] as num?)?.toInt() ?? 100;
+    final activeCount = (_quota?['active_customers'] as num?)?.toInt() ?? 0;
+    final maxAllowed = (_quota?['max_allowed'] as num?)?.toInt() ?? 5;
+    final isExpired = _quota?['is_expired'] == true;
+    final isInGrace = _quota?['is_in_grace'] == true;
+    final isPaid = _quota?['is_paid_active'] == true;
+    final planName = _quota?['plan_name']?.toString() ?? 'Free';
+    final currentPlanId = (_quota?['plan_id'] as num?)?.toInt();
+    final billingCycle = _quota?['billing_cycle']?.toString();
+    final validUntil = _quota?['valid_until']?.toString();
+    final graceDaysRemaining = (_quota?['grace_days_remaining'] as num?)?.toInt() ?? 0;
     final progress = maxAllowed > 0 ? (activeCount / maxAllowed).clamp(0.0, 1.0) : 0.0;
+
+    final selectedPlan = _selectedPlan();
+    final selectedPreview = selectedPlan != null ? _previewFor(selectedPlan, _selectedCycle) : null;
+    final canSubmit = selectedPreview != null && selectedPreview['allowed'] == true;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('⚡ Quota & Subscription'),
+        title: const Text('⚡ Plans & Subscription'),
       ),
       body: _errorMessage != null
           ? Center(
@@ -138,9 +229,14 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Status Banner
                   Card(
-                    color: isPaid ? const Color(0xFFECFDF5) : const Color(0xFFEFF6FF),
+                    color: isExpired
+                        ? const Color(0xFFFEF2F2)
+                        : isInGrace
+                            ? const Color(0xFFFFFBEB)
+                            : isPaid
+                                ? const Color(0xFFECFDF5)
+                                : const Color(0xFFEFF6FF),
                     child: Padding(
                       padding: const EdgeInsets.all(18),
                       child: Column(
@@ -149,22 +245,42 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
-                                isPaid ? '🌟 Paid Extended Tier' : '🌱 Free Tier',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 18,
-                                  color: isPaid ? const Color(0xFF065F46) : const Color(0xFF1E40AF),
+                              Expanded(
+                                child: Text(
+                                  isExpired
+                                      ? '⚠️ $planName Expired'
+                                      : isInGrace
+                                          ? '⏳ $planName Grace ($graceDaysRemaining d left)'
+                                          : isPaid
+                                              ? '🌟 $planName (${(billingCycle ?? 'monthly').toUpperCase()})'
+                                              : '🌱 Free Tier',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 17,
+                                    color: isExpired
+                                        ? const Color(0xFF991B1B)
+                                        : isInGrace
+                                            ? const Color(0xFF92400E)
+                                            : isPaid
+                                                ? const Color(0xFF065F46)
+                                                : const Color(0xFF1E40AF),
+                                  ),
                                 ),
                               ),
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                 decoration: BoxDecoration(
-                                  color: isPaid ? const Color(0xFF10B981) : const Color(0xFF3B82F6),
+                                  color: isExpired
+                                      ? const Color(0xFFEF4444)
+                                      : isInGrace
+                                          ? const Color(0xFFF59E0B)
+                                          : isPaid
+                                              ? const Color(0xFF10B981)
+                                              : const Color(0xFF3B82F6),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Text(
-                                  isPaid ? 'ACTIVE' : 'FREE',
+                                  isExpired ? 'EXPIRED' : (isInGrace ? 'GRACE' : (isPaid ? 'ACTIVE' : 'FREE')),
                                   style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
                                 ),
                               ),
@@ -191,14 +307,18 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                           ),
                           const SizedBox(height: 10),
                           Text(
-                            '${maxAllowed - activeCount} customer slots remaining in current plan.',
+                            '${(maxAllowed - activeCount).clamp(0, maxAllowed)} customer slots remaining.',
                             style: const TextStyle(fontSize: 12, color: Colors.black54),
                           ),
-                          if (purchasedBlocks > 0) ...[
+                          if (validUntil != null) ...[
                             const SizedBox(height: 6),
                             Text(
-                              'Purchased Capacity: $purchasedBlocks block(s) (+${purchasedBlocks * unitSize} customers)',
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF047857)),
+                              'Valid until: $validUntil',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: isExpired ? const Color(0xFF991B1B) : const Color(0xFF047857),
+                              ),
                             ),
                           ],
                         ],
@@ -207,7 +327,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // Upgrade Options Card
                   Card(
                     child: Padding(
                       padding: const EdgeInsets.all(18),
@@ -215,78 +334,237 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'Scale Your Milk Delivery Business',
+                            'Choose Your Plan',
                             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
                           ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Add blocks of $unitSize customer slots for just ₹${unitPrice.toStringAsFixed(0)}/month each.',
-                            style: const TextStyle(fontSize: 13, color: Colors.black54),
-                          ),
-                          const Divider(height: 28),
+                          const SizedBox(height: 4),
                           const Text(
-                            'Select Number of Blocks:',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                            'Renewing early extends from your current expiry date. Switch to a smaller pack within 7 days of expiry.',
+                            style: TextStyle(fontSize: 12, color: Colors.black54),
                           ),
-                          const SizedBox(height: 10),
+                          const Divider(height: 24),
+                          const Text('Billing Cycle:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          const SizedBox(height: 8),
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceAround,
-                            children: [1, 2, 5, 10].map((blocks) {
-                              final isSelected = _selectedBlocks == blocks;
-                              return ChoiceChip(
-                                label: Text('+$blocks (+${blocks * unitSize})'),
-                                selected: isSelected,
-                                selectedColor: const Color(0xFF0284C7),
-                                labelStyle: TextStyle(
-                                  color: isSelected ? Colors.white : Colors.black87,
-                                  fontWeight: FontWeight.bold,
+                            children: [
+                              Expanded(
+                                child: ChoiceChip(
+                                  label: const Center(child: Text('Monthly')),
+                                  selected: _selectedCycle == 'monthly',
+                                  selectedColor: const Color(0xFF0284C7),
+                                  labelStyle: TextStyle(
+                                    color: _selectedCycle == 'monthly' ? Colors.white : Colors.black87,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  onSelected: (_) => _selectCycle('monthly'),
                                 ),
-                                onSelected: (_) => setState(() => _selectedBlocks = blocks),
-                              );
-                            }).toList(),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: ChoiceChip(
+                                  label: const Center(child: Text('Yearly (Save ~17%)')),
+                                  selected: _selectedCycle == 'yearly',
+                                  selectedColor: const Color(0xFF16A34A),
+                                  labelStyle: TextStyle(
+                                    color: _selectedCycle == 'yearly' ? Colors.white : Colors.black87,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  onSelected: (_) => _selectCycle('yearly'),
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 20),
-                          Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF8FAFC),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: const Color(0xFFE2E8F0)),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Column(
+                          const SizedBox(height: 16),
+                          const Text('Available Packs:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          const SizedBox(height: 8),
+                          ..._plans.map((p) {
+                            final pid = (p['id'] as num?)?.toInt() ?? 0;
+                            final preview = _previewFor(p, _selectedCycle);
+                            final allowed = preview?['allowed'] == true;
+                            final isSelected = _selectedPlanId == pid;
+                            final isCurrent = pid == currentPlanId && isPaid;
+                            final amount = (preview?['amount'] as num?)?.toDouble() ?? 0.0;
+                            final actionType = preview?['action_type']?.toString() ?? '';
+                            final reason = preview?['reason']?.toString();
+
+                            return GestureDetector(
+                              onTap: allowed ? () => setState(() => _selectedPlanId = pid) : null,
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 10),
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: !allowed
+                                      ? Colors.grey.shade100
+                                      : isSelected
+                                          ? const Color(0xFFEFF6FF)
+                                          : Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? const Color(0xFF0284C7)
+                                        : Colors.grey.shade300,
+                                    width: isSelected ? 2 : 1,
+                                  ),
+                                ),
+                                child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Text('Total Plan Price:', style: TextStyle(fontSize: 12, color: Colors.black54)),
-                                    Text(
-                                      '₹${(_selectedBlocks * unitPrice).toStringAsFixed(0)}',
-                                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Color(0xFF0284C7)),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Icon(
+                                              isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                                              size: 18,
+                                              color: allowed ? const Color(0xFF0284C7) : Colors.grey,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Row(
+                                                  children: [
+                                                    Text(
+                                                      p['name']?.toString() ?? '',
+                                                      style: TextStyle(
+                                                        fontWeight: FontWeight.w900,
+                                                        fontSize: 15,
+                                                        color: allowed ? Colors.black87 : Colors.grey,
+                                                      ),
+                                                    ),
+                                                    if (isCurrent) ...[
+                                                      const SizedBox(width: 6),
+                                                      Container(
+                                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                        decoration: BoxDecoration(
+                                                          color: const Color(0xFFD1FAE5),
+                                                          borderRadius: BorderRadius.circular(6),
+                                                        ),
+                                                        child: const Text(
+                                                          'CURRENT',
+                                                          style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Color(0xFF065F46)),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ],
+                                                ),
+                                                Text(
+                                                  'Up to ${p['customer_limit']} active customers',
+                                                  style: const TextStyle(fontSize: 12, color: Colors.black54),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                        Column(
+                                          crossAxisAlignment: CrossAxisAlignment.end,
+                                          children: [
+                                            Text(
+                                              '₹${amount.toStringAsFixed(0)}',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w900,
+                                                fontSize: 16,
+                                                color: allowed ? const Color(0xFF0284C7) : Colors.grey,
+                                              ),
+                                            ),
+                                            Text(
+                                              allowed ? actionType.toUpperCase() : 'UNAVAILABLE',
+                                              style: TextStyle(
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.bold,
+                                                color: allowed ? Colors.black54 : Colors.red.shade400,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
                                     ),
+                                    if (!allowed && reason != null) ...[
+                                      const SizedBox(height: 6),
+                                      Text(reason, style: TextStyle(fontSize: 11, color: Colors.red.shade700)),
+                                    ],
                                   ],
                                 ),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    const Text('Added Capacity:', style: TextStyle(fontSize: 12, color: Colors.black54)),
-                                    Text(
-                                      '+${_selectedBlocks * unitSize} slots',
-                                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF16A34A)),
+                              ),
+                            );
+                          }),
+
+                          if (selectedPreview != null) ...[
+                            const SizedBox(height: 10),
+                            Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Text('Base Plan Price:', style: TextStyle(fontSize: 12, color: Colors.black54)),
+                                      Text(
+                                        '₹${((selectedPreview['base_amount'] as num?)?.toDouble() ?? 0).toStringAsFixed(2)}',
+                                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                                      ),
+                                    ],
+                                  ),
+                                  if (((selectedPreview['gst_percentage'] as num?)?.toDouble() ?? 0) > 0) ...[
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          'GST (${((selectedPreview['gst_percentage'] as num?)?.toDouble() ?? 18).toStringAsFixed(0)}% Exclusive):',
+                                          style: const TextStyle(fontSize: 12, color: Colors.black54),
+                                        ),
+                                        Text(
+                                          '₹${((selectedPreview['gst_amount'] as num?)?.toDouble() ?? 0).toStringAsFixed(2)}',
+                                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                                        ),
+                                      ],
                                     ),
                                   ],
-                                ),
-                              ],
+                                  const Divider(height: 14),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Text('Total Payable:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                      Text(
+                                        '₹${((selectedPreview['amount'] as num?)?.toDouble() ?? 0).toStringAsFixed(2)}',
+                                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF0284C7)),
+                                      ),
+                                    ],
+                                  ),
+                                  if (selectedPreview['note'] != null) ...[
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      selectedPreview['note'].toString(),
+                                      style: const TextStyle(fontSize: 11, color: Colors.black87),
+                                    ),
+                                  ],
+                                  const SizedBox(height: 6),
+                                  const Text(
+                                    'GST Tax Invoice by Shri Ram Open Source Technologies (27AARPE1865G1ZJ) will be sent via Email & WhatsApp.',
+                                    style: TextStyle(fontSize: 10, color: Colors.black54),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 20),
+                          ],
+                          const SizedBox(height: 18),
                           ElevatedButton.icon(
-                            onPressed: _isUpgrading ? null : _upgradeQuota,
+                            onPressed: (_isUpgrading || !canSubmit) ? null : _activatePlan,
                             icon: _isUpgrading
                                 ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                                 : const Icon(Icons.flash_on),
                             label: Text(
-                              _isUpgrading ? 'Upgrading Quota...' : 'Upgrade Now (+${_selectedBlocks * unitSize} Customers)',
+                              _isUpgrading
+                                  ? 'Processing...'
+                                  : 'Activate ${selectedPlan?['name'] ?? 'Plan'} (${_selectedCycle == 'yearly' ? 'Yearly' : 'Monthly'})',
                               style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                             ),
                             style: ElevatedButton.styleFrom(

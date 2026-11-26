@@ -125,6 +125,7 @@ return function (Router $router): void {
     $router->post('/api/invoices/generate-batch', [InvoiceApiController::class, 'generateBatch'], ['api.tenant']);
     $router->post('/api/invoices/generate-single', [InvoiceApiController::class, 'generateSingle'], ['api.tenant']);
     $router->get('/api/invoices/{id}/share', [InvoiceApiController::class, 'share'], ['api.tenant']);
+    $router->post('/api/invoices/{id}/send-whatsapp', [InvoiceApiController::class, 'sendWhatsAppSingle'], ['api.tenant']);
     $router->post('/api/invoices/whatsapp-queue', [InvoiceApiController::class, 'queueWhatsApp'], ['api.tenant']);
     $router->get('/api/invoices/whatsapp-queue', [InvoiceApiController::class, 'queueStats'], ['api.tenant']);
     $router->post('/api/invoices/whatsapp-queue/{id}/retry', [InvoiceApiController::class, 'retryWhatsApp'], ['api.tenant']);
@@ -143,6 +144,8 @@ return function (Router $router): void {
     $router->post('/api/settings/taxes', [SettingsApiController::class, 'updateTaxes'], ['api.tenant']);
     $router->put('/api/settings/upi', [SettingsApiController::class, 'updateUpi'], ['api.tenant']);
     $router->post('/api/settings/upi', [SettingsApiController::class, 'updateUpi'], ['api.tenant']);
+    $router->put('/api/settings/whatsapp', [SettingsApiController::class, 'updateWhatsApp'], ['api.tenant']);
+    $router->post('/api/settings/whatsapp', [SettingsApiController::class, 'updateWhatsApp'], ['api.tenant']);
     $router->get('/api/settings/charges', [SettingsApiController::class, 'getCharges'], ['api.tenant']);
     $router->post('/api/settings/charges', [SettingsApiController::class, 'addCharge'], ['api.tenant']);
     $router->post('/api/settings/charges/{id}/toggle', [SettingsApiController::class, 'toggleCharge'], ['api.tenant']);
@@ -161,12 +164,20 @@ return function (Router $router): void {
     $router->get('/api/subscription', [SubscriptionApiController::class, 'getSubscription'], ['api.tenant']);
     $router->post('/api/subscription/request-upgrade', [SubscriptionApiController::class, 'requestUpgrade'], ['api.tenant']);
     $router->post('/api/subscription/upgrade', [SubscriptionApiController::class, 'upgradeQuota'], ['api.tenant']);
+    $router->get('/api/subscription/invoices', [SubscriptionApiController::class, 'getInvoices'], ['api.tenant']);
+    $router->get('/api/subscription/invoices/{id}', [SubscriptionApiController::class, 'getInvoice'], ['api.tenant']);
+    $router->post('/api/subscription/invoices/{id}/resend', [SubscriptionApiController::class, 'resendInvoice'], ['api.tenant']);
 
     // 11. Super Admin Platform Governance
     $router->get('/api/admin/stats', [AdminApiController::class, 'stats'], ['api.admin']);
     $router->get('/api/admin/settings', [AdminApiController::class, 'getSettings'], ['api.admin']);
     $router->put('/api/admin/settings', [AdminApiController::class, 'updateSettings'], ['api.admin']);
     $router->post('/api/admin/settings', [AdminApiController::class, 'updateSettings'], ['api.admin']);
+    $router->get('/api/admin/plans', [AdminApiController::class, 'getPlans'], ['api.admin']);
+    $router->post('/api/admin/plans', [AdminApiController::class, 'savePlan'], ['api.admin']);
+    $router->put('/api/admin/plans/{id}', [AdminApiController::class, 'savePlan'], ['api.admin']);
+    $router->post('/api/admin/plans/{id}', [AdminApiController::class, 'savePlan'], ['api.admin']);
+    $router->post('/api/admin/plans/{id}/toggle', [AdminApiController::class, 'togglePlan'], ['api.admin']);
     $router->get('/api/admin/tenants', [AdminApiController::class, 'getTenants'], ['api.admin']);
     $router->post('/api/admin/tenants/{id}/toggle-status', [AdminApiController::class, 'toggleTenantStatus'], ['api.admin']);
     $router->post('/api/admin/tenants/{id}/quota', [AdminApiController::class, 'adjustQuota'], ['api.admin']);

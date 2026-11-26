@@ -192,10 +192,19 @@ foreach ($invoices as $inv) {
                         </div>
 
                         <div class="flex items-center gap-1.5 flex-wrap">
-                            <!-- Direct 1-Click WhatsApp Send -->
-                            <a href="<?= url("/invoices/{$inv['id']}/whatsapp") ?>" target="_blank" class="tap-target px-2.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold border border-emerald-300 transition flex items-center gap-1 shadow-sm" title="Send WhatsApp Bill directly to customer">
-                                <span class="text-sm">💬</span>
-                                <span class="hidden sm:inline">WhatsApp</span>
+                            <!-- Direct 1-Click WhatsApp PDF Send (Cron/Meta Engine) -->
+                            <form method="POST" action="<?= url("/invoices/{$inv['id']}/whatsapp-send") ?>" class="inline" x-data="{ sending: false }" @submit="sending = true">
+                                <?= \App\Core\Auth::csrfField() ?>
+                                <input type="hidden" name="provider" value="meta_cloud">
+                                <button type="submit" :disabled="sending" class="tap-target px-2.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1 shadow-sm disabled:opacity-50" title="Send Bill PDF directly as document via WhatsApp">
+                                    <span x-show="!sending">📄 WhatsApp</span>
+                                    <span x-show="sending">⏳...</span>
+                                </button>
+                            </form>
+
+                            <!-- Direct WhatsApp Web Fallback Link -->
+                            <a href="<?= url("/invoices/{$inv['id']}/whatsapp") ?>" target="_blank" class="tap-target px-2 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold border border-emerald-300 transition flex items-center gap-1 shadow-sm" title="Open Click-to-Chat in WhatsApp Web">
+                                <span>💬</span>
                             </a>
 
                             <a href="<?= url("/invoices/{$inv['id']}") ?>" class="tap-target px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold border border-blue-200 transition">

@@ -126,6 +126,8 @@ final class InvoiceApiController extends ApiBaseController
             [$tenantId]
         );
 
+        $whatsappMessage = $this->whatsAppService->getInvoiceMessageStatus($tenantId, $id);
+
         $this->jsonSuccess([
             'invoice' => $invoice,
             'breakdown' => $breakdown,
@@ -137,6 +139,7 @@ final class InvoiceApiController extends ApiBaseController
                 'status' => $invoice['payment_status'],
             ],
             'settings' => $settings,
+            'whatsapp_message' => $whatsappMessage,
         ]);
     }
 
@@ -203,6 +206,22 @@ final class InvoiceApiController extends ApiBaseController
         }
 
         $this->jsonSuccess($payload);
+    }
+
+    public function sendWhatsAppSingle(Request $request, array $params): void
+    {
+        Auth::requireApiTenant();
+        $tenantId = $this->tenantId();
+        $id = (int)($params['id'] ?? 0);
+        $provider = $request->input('provider');
+
+        $result = $this->whatsAppService->sendSingleInvoiceNow($tenantId, $id, $provider ? (string)$provider : null);
+
+        if ($result['success']) {
+            $this->jsonSuccess($result, 'Invoice PDF successfully sent to customer on WhatsApp.');
+        } else {
+            $this->jsonError($result['error'] ?? 'Failed to send WhatsApp message.', 422, 'WHATSAPP_SEND_FAILED', $result);
+        }
     }
 
     public function queueWhatsApp(Request $request): void

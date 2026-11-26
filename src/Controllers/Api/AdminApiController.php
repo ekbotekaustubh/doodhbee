@@ -59,7 +59,17 @@ final class AdminApiController extends ApiBaseController
     {
         $freeLimit = (int)$request->input('free_customer_limit', 5);
         $unitSize = (int)$request->input('paid_tier_unit_size', 100);
-        $unitPrice = (float)$request->input('paid_tier_unit_price', 200.0);
+        $monthlyPrice = $request->has('paid_tier_monthly_price')
+            ? (float)$request->input('paid_tier_monthly_price', 200.0)
+            : (float)$request->input('paid_tier_unit_price', 200.0);
+        $yearlyPrice = (float)$request->input('paid_tier_yearly_price', 2000.0);
+        $graceDays = max(0, (int)$request->input('subscription_grace_days', 7));
+        $gstEnabled = $request->has('subscription_gst_enabled') ? (!empty($request->input('subscription_gst_enabled')) ? '1' : '0') : '1';
+        $gstPct = max(0.0, (float)$request->input('subscription_gst_percentage', 18.0));
+        $companyName = trim((string)$request->input('company_legal_name', 'Shri Ram Open Source Technologies'));
+        $companyGstin = trim((string)$request->input('company_gstin', '27AARPE1865G1ZJ'));
+        $companySac = trim((string)$request->input('company_sac_code', '998314'));
+        $companyAddr = trim((string)$request->input('company_address', 'Maharashtra, India'));
         $currencySymbol = trim((string)$request->input('currency_symbol', '₹'));
         $platformName = trim((string)$request->input('platform_name', 'DoodhBee SaaS'));
         $supportEmail = trim((string)$request->input('support_email', 'support@doodhbee.com'));
@@ -68,7 +78,16 @@ final class AdminApiController extends ApiBaseController
         $settings = [
             'free_customer_limit' => (string)$freeLimit,
             'paid_tier_unit_size' => (string)$unitSize,
-            'paid_tier_unit_price' => (string)$unitPrice,
+            'paid_tier_unit_price' => (string)$monthlyPrice,
+            'paid_tier_monthly_price' => (string)$monthlyPrice,
+            'paid_tier_yearly_price' => (string)$yearlyPrice,
+            'subscription_grace_days' => (string)$graceDays,
+            'subscription_gst_enabled' => $gstEnabled,
+            'subscription_gst_percentage' => (string)$gstPct,
+            'company_legal_name' => $companyName ?: 'Shri Ram Open Source Technologies',
+            'company_gstin' => $companyGstin ?: '27AARPE1865G1ZJ',
+            'company_sac_code' => $companySac ?: '998314',
+            'company_address' => $companyAddr ?: 'Maharashtra, India',
             'currency_symbol' => $currencySymbol,
             'platform_name' => $platformName,
             'support_email' => $supportEmail,
@@ -113,11 +132,14 @@ final class AdminApiController extends ApiBaseController
         $status = trim((string)$request->get('status', ''));
 
         $sql = "SELECT t.id, t.business_name, t.owner_name, t.phone, t.email, t.status, t.created_at,
+                       ts.plan_id, sp.code as plan_code, sp.name as plan_name,
                        ts.purchased_blocks, ts.max_customers_allowed, ts.amount_paid, ts.payment_status,
+                       ts.billing_cycle, ts.started_at, ts.valid_until,
                        (SELECT COUNT(*) FROM customers c WHERE c.tenant_id = t.id AND c.status = 'active') as active_customers,
                        (SELECT COUNT(*) FROM customers c WHERE c.tenant_id = t.id) as total_customers
                 FROM tenants t
                 LEFT JOIN tenant_subscriptions ts ON ts.tenant_id = t.id
+                LEFT JOIN subscription_plans sp ON sp.id = ts.plan_id
                 WHERE 1=1";
         $params = [];
 
@@ -172,30 +194,147 @@ final class AdminApiController extends ApiBaseController
     public function adjustQuota(Request $request, array $params): void
     {
         $id = (int)($params['id'] ?? 0);
-        $purchasedBlocks = (int)$request->input('purchased_blocks', 0);
+        $planId = (int)$request->input('plan_id', 0);
+        $purchasedBlocks = max(0, (int)$request->input('purchased_blocks', 0));
+        $billingCycle = $request->has('billing_cycle') ? (string)$request->input('billing_cycle', 'monthly') : null;
+        $validUntil = $request->has('valid_until') ? trim((string)$request->input('valid_until', '')) : null;
 
         $tenant = $this->db->fetchOne("SELECT id, business_name FROM tenants WHERE id = ?", [$id]);
         if (!$tenant) {
             $this->jsonError('Tenant not found.', 404, 'NOT_FOUND');
+            return;
+        }
+
+        if ($planId > 0) {
+            $plan = $this->quotaService->getPlanById($planId);
+            if (!$plan) {
+                $this->jsonError('Subscription plan not found.', 404, 'NOT_FOUND');
+                return;
+            }
+            if (!empty($plan['is_free'])) {
+                $this->db->execute(
+                    "INSERT INTO tenant_subscriptions (tenant_id, plan_id, purchased_blocks, max_customers_allowed, billing_cycle, valid_until, payment_status)
+                     VALUES (?, ?, 0, ?, NULL, NULL, 'free')
+                     ON DUPLICATE KEY UPDATE
+                        plan_id = VALUES(plan_id),
+                        purchased_blocks = 0,
+                        max_customers_allowed = VALUES(max_customers_allowed),
+                        billing_cycle = NULL,
+                        valid_until = NULL,
+                        payment_status = 'free'",
+                    [$id, $plan['id'], $plan['customer_limit']]
+                );
+            } else {
+                $cycle = $this->quotaService->normalizeBillingCycle($billingCycle ?: 'monthly');
+                $targetValidUntil = !empty($validUntil) ? $validUntil : $this->quotaService->calculateCycleExpiry($cycle);
+                $today = date('Y-m-d');
+                $this->db->execute(
+                    "INSERT INTO tenant_subscriptions (tenant_id, plan_id, purchased_blocks, max_customers_allowed, billing_cycle, started_at, valid_until, payment_status)
+                     VALUES (?, ?, 1, ?, ?, ?, ?, 'active')
+                     ON DUPLICATE KEY UPDATE
+                        plan_id = VALUES(plan_id),
+                        max_customers_allowed = VALUES(max_customers_allowed),
+                        billing_cycle = VALUES(billing_cycle),
+                        started_at = COALESCE(started_at, VALUES(started_at)),
+                        valid_until = VALUES(valid_until),
+                        payment_status = 'active'",
+                    [$id, $plan['id'], $plan['customer_limit'], $cycle, $today, $targetValidUntil]
+                );
+            }
+            $quota = $this->quotaService->getTenantQuota($id);
+            $this->jsonSuccess($quota, "Plan updated to {$plan['name']} for {$tenant['business_name']}.");
+            return;
         }
 
         $settings = $this->quotaService->getPlatformSettings();
-        $freeLimit = (int)$settings['free_customer_limit'];
+        $freeLimit = $this->quotaService->getFreeCustomerLimit();
         $unitSize = (int)$settings['paid_tier_unit_size'];
         $newAllowed = $freeLimit + ($purchasedBlocks * $unitSize);
 
-        $this->db->execute(
-            "INSERT INTO tenant_subscriptions (tenant_id, purchased_blocks, max_customers_allowed, payment_status)
-             VALUES (?, ?, ?, 'active')
-             ON DUPLICATE KEY UPDATE 
-                purchased_blocks = VALUES(purchased_blocks),
-                max_customers_allowed = VALUES(max_customers_allowed)",
-            [$id, $purchasedBlocks, $newAllowed]
-        );
+        if ($purchasedBlocks === 0) {
+            $freePlan = $this->quotaService->getFreePlan();
+            $this->db->execute(
+                "INSERT INTO tenant_subscriptions (tenant_id, plan_id, purchased_blocks, max_customers_allowed, billing_cycle, valid_until, payment_status)
+                 VALUES (?, ?, 0, ?, NULL, NULL, 'free')
+                 ON DUPLICATE KEY UPDATE 
+                    plan_id = VALUES(plan_id),
+                    purchased_blocks = 0,
+                    max_customers_allowed = VALUES(max_customers_allowed),
+                    billing_cycle = NULL,
+                    valid_until = NULL,
+                    payment_status = 'free'",
+                [$id, $freePlan ? $freePlan['id'] : null, $newAllowed]
+            );
+        } else {
+            $cycle = $this->quotaService->normalizeBillingCycle($billingCycle ?: 'monthly');
+            $targetValidUntil = !empty($validUntil) ? $validUntil : $this->quotaService->calculateCycleExpiry($cycle);
+            $today = date('Y-m-d');
+            $this->db->execute(
+                "INSERT INTO tenant_subscriptions (tenant_id, purchased_blocks, max_customers_allowed, billing_cycle, started_at, valid_until, payment_status)
+                 VALUES (?, ?, ?, ?, ?, ?, 'active')
+                 ON DUPLICATE KEY UPDATE 
+                    purchased_blocks = VALUES(purchased_blocks),
+                    max_customers_allowed = VALUES(max_customers_allowed),
+                    billing_cycle = COALESCE(?, billing_cycle, 'monthly'),
+                    started_at = COALESCE(started_at, VALUES(started_at)),
+                    valid_until = COALESCE(?, valid_until, VALUES(valid_until)),
+                    payment_status = 'active'",
+                [
+                    $id,
+                    $purchasedBlocks,
+                    $newAllowed,
+                    $cycle,
+                    $today,
+                    $targetValidUntil,
+                    $billingCycle !== null ? $cycle : null,
+                    !empty($validUntil) ? $validUntil : null,
+                ]
+            );
+        }
 
         $quota = $this->quotaService->getTenantQuota($id);
 
         $this->jsonSuccess($quota, "Quota updated for {$tenant['business_name']}.");
+    }
+
+    public function getPlans(Request $request): void
+    {
+        $plans = $this->quotaService->getPlans(false);
+        $this->jsonSuccess($plans);
+    }
+
+    public function savePlan(Request $request, array $params = []): void
+    {
+        $planId = isset($params['id']) ? (int)$params['id'] : (int)$request->input('id', 0);
+        try {
+            $saved = $this->quotaService->savePlan([
+                'code' => $request->input('code', ''),
+                'name' => $request->input('name', ''),
+                'description' => $request->input('description', ''),
+                'customer_limit' => (int)$request->input('customer_limit', 100),
+                'monthly_price' => (float)$request->input('monthly_price', 0.0),
+                'yearly_price' => (float)$request->input('yearly_price', 0.0),
+                'is_active' => $request->has('is_active') ? (bool)$request->input('is_active') : true,
+                'sort_order' => (int)$request->input('sort_order', 10),
+            ], $planId > 0 ? $planId : null);
+        } catch (\InvalidArgumentException $e) {
+            $this->jsonError($e->getMessage(), 422, 'VALIDATION_ERROR');
+            return;
+        }
+
+        $this->jsonSuccess($saved, 'Subscription plan saved successfully.', $planId > 0 ? 200 : 201);
+    }
+
+    public function togglePlan(Request $request, array $params): void
+    {
+        $planId = (int)($params['id'] ?? 0);
+        try {
+            $updated = $this->quotaService->togglePlan($planId);
+        } catch (\InvalidArgumentException $e) {
+            $this->jsonError($e->getMessage(), 422, 'VALIDATION_ERROR');
+            return;
+        }
+        $this->jsonSuccess($updated, 'Plan availability toggled.');
     }
 
     public function getSubscriptionRequests(Request $request): void

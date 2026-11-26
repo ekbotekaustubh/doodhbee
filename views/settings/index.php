@@ -122,6 +122,74 @@
         </form>
     </div>
 
+    <!-- Section 2a: WhatsApp Gateway & Meta Cloud API Configuration -->
+    <div class="bg-white rounded-3xl border border-slate-200 p-6 md:p-8 shadow-sm">
+        <h2 class="text-lg font-black text-slate-900 mb-1 flex items-center gap-2">
+            <span>📱 WhatsApp Gateway & Document Delivery</span>
+        </h2>
+        <p class="text-xs text-slate-500 mb-6">
+            Configure how customer invoices are delivered via WhatsApp. Use Meta WhatsApp Cloud API to send bills directly as PDF document attachments with captions.
+        </p>
+
+        <form method="POST" action="<?= url('/settings/whatsapp') ?>" class="space-y-4" x-data="{ provider: '<?= e($settings['whatsapp_provider'] ?? 'browser') ?>' }">
+            <?= \App\Core\Auth::csrfField() ?>
+
+            <!-- Provider Selection -->
+            <div>
+                <label class="block text-xs font-black uppercase text-slate-700 mb-2">WhatsApp Sending Method *</label>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <label class="p-4 rounded-2xl border cursor-pointer transition flex items-start gap-3" :class="provider === 'meta_cloud' ? 'border-emerald-500 bg-emerald-50/50 ring-2 ring-emerald-500/20' : 'border-slate-200 hover:bg-slate-50'">
+                        <input type="radio" name="whatsapp_provider" value="meta_cloud" x-model="provider" class="mt-1 text-emerald-600 focus:ring-emerald-500">
+                        <div>
+                            <div class="text-sm font-black text-slate-900 flex items-center gap-1.5">
+                                <span>📄 Meta Cloud API (Graph API)</span>
+                                <span class="text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">PDF Attachment</span>
+                            </div>
+                            <div class="text-xs text-slate-500 mt-1">
+                                Automatically sends the full invoice PDF as a document attachment directly to customer's WhatsApp chat with instant delivery.
+                            </div>
+                        </div>
+                    </label>
+
+                    <label class="p-4 rounded-2xl border cursor-pointer transition flex items-start gap-3" :class="provider === 'browser' ? 'border-blue-500 bg-blue-50/50 ring-2 ring-blue-500/20' : 'border-slate-200 hover:bg-slate-50'">
+                        <input type="radio" name="whatsapp_provider" value="browser" x-model="provider" class="mt-1 text-blue-600 focus:ring-blue-500">
+                        <div>
+                            <div class="text-sm font-black text-slate-900 flex items-center gap-1.5">
+                                <span>💬 Browser Click-to-Chat / Manual</span>
+                            </div>
+                            <div class="text-xs text-slate-500 mt-1">
+                                Opens WhatsApp Web / App with pre-filled message text and a secure one-tap PDF download link. No API keys required.
+                            </div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Meta Cloud API Fields (shown when meta_cloud selected) -->
+            <div x-show="provider === 'meta_cloud'" x-cloak class="space-y-4 pt-2 border-t border-slate-100">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-black uppercase text-slate-700 mb-1">WhatsApp Phone Number ID *</label>
+                        <input type="text" name="whatsapp_phone_number_id" value="<?= e($settings['whatsapp_phone_number_id'] ?? '') ?>" placeholder="e.g. 104928374928374" class="w-full text-sm font-mono px-3.5 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500">
+                        <p class="text-[11px] text-slate-400 mt-1">Found in your Meta App Dashboard under WhatsApp > API Setup.</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-black uppercase text-slate-700 mb-1">Meta WhatsApp API Token (System User Token) *</label>
+                        <input type="password" name="whatsapp_api_token" value="<?= e($settings['whatsapp_api_token'] ?? '') ?>" placeholder="EAAG..." class="w-full text-sm font-mono px-3.5 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500">
+                        <p class="text-[11px] text-slate-400 mt-1">Permanent access token generated in Meta Business Manager.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-right pt-2">
+                <button type="submit" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow transition">
+                    Save WhatsApp Settings
+                </button>
+            </div>
+        </form>
+    </div>
+
     <!-- Section 2b: Dairy Product Catalog & Default Pricing (Approach A: Multi-Product Support) -->
     <div class="bg-white rounded-3xl border border-slate-200 p-6 md:p-8 shadow-sm space-y-6">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">

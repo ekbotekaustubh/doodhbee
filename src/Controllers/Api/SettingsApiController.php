@@ -23,7 +23,8 @@ final class SettingsApiController extends ApiBaseController
         );
 
         $settings = $this->db->fetchOne(
-            "SELECT tax_enabled, tax_label, tax_percentage, tax_number, upi_id, upi_qr_path, invoice_footer_note
+            "SELECT tax_enabled, tax_label, tax_percentage, tax_number, upi_id, upi_qr_path, invoice_footer_note,
+                    whatsapp_provider, whatsapp_api_token, whatsapp_phone_number_id
              FROM tenant_settings WHERE tenant_id = ?",
             [$tenantId]
         );
@@ -171,6 +172,36 @@ final class SettingsApiController extends ApiBaseController
         );
 
         $this->jsonSuccess(['upi_id' => $upiId], 'UPI ID updated successfully');
+    }
+
+    public function updateWhatsApp(Request $request): void
+    {
+        $tenantId = $this->tenantId();
+        $provider = trim((string)$request->input('whatsapp_provider', 'browser'));
+        $apiToken = trim((string)$request->input('whatsapp_api_token', ''));
+        $phoneId = trim((string)$request->input('whatsapp_phone_number_id', ''));
+
+        if (!in_array($provider, ['browser', 'meta_cloud', 'custom_webhook'], true)) {
+            $provider = 'browser';
+        }
+
+        $exists = $this->db->fetchOne("SELECT id FROM tenant_settings WHERE tenant_id = ?", [$tenantId]);
+        if (!$exists) {
+            $this->db->execute(
+                "INSERT INTO tenant_settings (tenant_id, whatsapp_provider, whatsapp_api_token, whatsapp_phone_number_id) VALUES (?, ?, ?, ?)",
+                [$tenantId, $provider, empty($apiToken) ? null : $apiToken, empty($phoneId) ? null : $phoneId]
+            );
+        } else {
+            $this->db->execute(
+                "UPDATE tenant_settings SET whatsapp_provider = ?, whatsapp_api_token = ?, whatsapp_phone_number_id = ? WHERE tenant_id = ?",
+                [$provider, empty($apiToken) ? null : $apiToken, empty($phoneId) ? null : $phoneId, $tenantId]
+            );
+        }
+
+        $this->jsonSuccess([
+            'whatsapp_provider' => $provider,
+            'whatsapp_phone_number_id' => $phoneId,
+        ], 'WhatsApp gateway settings updated successfully.');
     }
 
     public function getCharges(Request $request): void

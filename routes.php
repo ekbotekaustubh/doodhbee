@@ -105,6 +105,7 @@ return function (Router $router): void {
     $router->get('/invoices/{id}/pdf', [InvoiceController::class, 'downloadPdf'], ['tenant']);
     $router->post('/invoices/{id}/payment', [InvoiceController::class, 'recordPayment'], ['tenant']);
     $router->get('/invoices/{id}/whatsapp', [InvoiceController::class, 'whatsappSingle'], ['tenant']);
+    $router->post('/invoices/{id}/whatsapp-send', [InvoiceController::class, 'whatsappSendNow'], ['tenant']);
     $router->post('/invoices/whatsapp/bulk-queue', [InvoiceController::class, 'whatsappBulkQueue'], ['tenant']);
     $router->post('/invoices/whatsapp/retry/{id}', [InvoiceController::class, 'whatsappRetry'], ['tenant']);
     $router->get('/bill/{id}/pdf', [InvoiceController::class, 'publicPdf']);
@@ -113,6 +114,7 @@ return function (Router $router): void {
     $router->get('/settings', [SettingsController::class, 'index'], ['tenant']);
     $router->post('/settings/profile', [SettingsController::class, 'updateProfile'], ['tenant']);
     $router->post('/settings/taxes', [SettingsController::class, 'updateTaxes'], ['tenant']);
+    $router->post('/settings/whatsapp', [SettingsController::class, 'updateWhatsApp'], ['tenant']);
     $router->post('/settings/products', [SettingsController::class, 'addProduct'], ['tenant']);
     $router->post('/settings/products/{id}/toggle', [SettingsController::class, 'toggleProduct'], ['tenant']);
     $router->post('/settings/products/{id}/delete', [SettingsController::class, 'deleteProduct'], ['tenant']);
@@ -128,14 +130,22 @@ return function (Router $router): void {
     $router->get('/subscription', [SettingsController::class, 'subscriptionView'], ['tenant']);
     $router->post('/subscription/request-upgrade', [SettingsController::class, 'requestUpgrade'], ['tenant']);
     $router->post('/subscription/upgrade', [SettingsController::class, 'upgradeQuota'], ['tenant']);
+    $router->get('/subscription/invoices/{id}', [SettingsController::class, 'subscriptionInvoiceView'], ['tenant']);
+    $router->get('/subscription/invoices/{id}/pdf', [SettingsController::class, 'subscriptionInvoicePdf'], ['tenant']);
+    $router->post('/subscription/invoices/{id}/resend', [SettingsController::class, 'resendSubscriptionInvoice'], ['tenant']);
+    $router->get('/subscription-invoice/{id}/pdf', [SettingsController::class, 'publicSubscriptionInvoicePdf']);
 
     // 7. Super Admin SaaS Platform Governance
     $router->get('/admin', [SuperAdminController::class, 'index'], ['admin']);
     $router->post('/admin/settings', [SuperAdminController::class, 'updateSettings'], ['admin']);
+    $router->post('/admin/plans', [SuperAdminController::class, 'savePlan'], ['admin']);
+    $router->post('/admin/plans/{id}', [SuperAdminController::class, 'savePlan'], ['admin']);
+    $router->post('/admin/plans/{id}/toggle', [SuperAdminController::class, 'togglePlan'], ['admin']);
     $router->post('/admin/tenants/{id}/toggle-status', [SuperAdminController::class, 'toggleTenantStatus'], ['admin']);
     $router->post('/admin/tenants/{id}/quota', [SuperAdminController::class, 'adjustQuota'], ['admin']);
     $router->post('/admin/subscription-requests/{id}/approve', [SuperAdminController::class, 'approveUpgradeRequest'], ['admin']);
     $router->post('/admin/subscription-requests/{id}/reject', [SuperAdminController::class, 'rejectUpgradeRequest'], ['admin']);
+    $router->get('/admin/subscription-invoices/{id}/pdf', [SuperAdminController::class, 'subscriptionInvoicePdf'], ['admin']);
 
     // 8. REST API Endpoints (Mobile & Headless)
     $apiRoutes = require __DIR__ . '/routes_api.php';

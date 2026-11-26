@@ -18,17 +18,23 @@
     <?php endif; ?>
 
     <?php if (!empty($pendingRequest)): ?>
-    <!-- Pending Upgrade Request Banner -->
+    <!-- Pending Subscription Request Banner -->
     <div class="bg-amber-50 rounded-3xl border-2 border-amber-300 p-6 shadow-sm space-y-3">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div class="flex items-start gap-3">
                 <span class="text-2xl">⏳</span>
                 <div>
                     <h3 class="text-sm font-black text-amber-950 uppercase tracking-wider">
-                        Upgrade Request Pending SuperAdmin Verification
+                        Subscription Request Pending SuperAdmin Verification
                     </h3>
                     <p class="text-xs text-amber-800 mt-0.5">
-                        Your payment proof of <strong><?= formatMoney((float)$pendingRequest['amount'], $quota['currency_symbol']) ?></strong> for <strong>+<?= (int)$pendingRequest['blocks_requested'] ?> capacity block (+<?= (int)$pendingRequest['customer_slots'] ?> customer slots)</strong> has been recorded and is currently awaiting verification.
+                        <?php
+                            $pReqType = ucfirst((string)($pendingRequest['request_type'] ?? 'plan'));
+                            $pReqCycle = ucfirst((string)($pendingRequest['billing_cycle'] ?? 'monthly'));
+                            $pPlanName = (string)($pendingRequest['plan_name'] ?? 'Paid Plan');
+                            $pLimit = (int)($pendingRequest['customer_limit'] ?? $pendingRequest['customer_slots'] ?? 100);
+                        ?>
+                        Your payment proof of <strong><?= formatMoney((float)$pendingRequest['amount'], $quota['currency_symbol']) ?></strong> for <strong><?= e($pPlanName) ?> (<?= e($pReqCycle) ?> • <?= e($pReqType) ?> • <?= $pLimit ?> customers)</strong> has been recorded and is awaiting verification.
                     </p>
                 </div>
             </div>
@@ -52,7 +58,52 @@
             </div>
         </div>
         <p class="text-[11px] text-amber-700 italic">
-            Once platform administration reconciles the transaction in the bank statement, your extra capacity will activate automatically.
+            Once platform administration reconciles the transaction, your selected plan will activate automatically.
+        </p>
+    </div>
+    <?php endif; ?>
+
+    <?php
+        $currency = $quota['currency_symbol'] ?? '₹';
+        $isExpired = !empty($quota['is_expired']);
+        $isInGrace = !empty($quota['is_in_grace']);
+        $isPaidActive = !empty($quota['is_paid_active']);
+        $currentPlanId = (int)($quota['plan_id'] ?? 0);
+        $currentPlanName = (string)($quota['plan_name'] ?? 'Free');
+        $currentCycle = $quota['billing_cycle'] ?? null;
+        $paidPlans = array_values(array_filter($plans ?? [], fn($p) => empty($p['is_free'])));
+        $defaultSelectedPlanId = 0;
+        foreach ($paidPlans as $pp) {
+            if ((int)$pp['id'] === $currentPlanId && !empty($pp['previews']['monthly']['allowed'])) {
+                $defaultSelectedPlanId = (int)$pp['id'];
+                break;
+            }
+        }
+        if ($defaultSelectedPlanId === 0) {
+            foreach ($paidPlans as $pp) {
+                if (!empty($pp['previews']['monthly']['allowed']) || !empty($pp['previews']['yearly']['allowed'])) {
+                    $defaultSelectedPlanId = (int)$pp['id'];
+                    break;
+                }
+            }
+        }
+        if ($defaultSelectedPlanId === 0 && !empty($paidPlans)) {
+            $defaultSelectedPlanId = (int)$paidPlans[0]['id'];
+        }
+    ?>
+
+    <?php if ($isExpired): ?>
+    <div class="p-4 rounded-2xl bg-rose-50 border-2 border-rose-300 text-rose-900 text-xs">
+        <div class="font-black uppercase tracking-wider text-rose-800">⚠️ Paid Subscription Expired</div>
+        <p class="mt-0.5">
+            Your <strong><?= e($currentPlanName) ?></strong> plan expired on <strong><?= formatDate($quota['valid_until'], 'd M Y') ?></strong>. Capacity has soft-downgraded to the Free limit (<?= (int)$quota['free_limit'] ?> active customers). Existing customers and daily deliveries continue working; choose any plan below to reactivate.
+        </p>
+    </div>
+    <?php elseif ($isInGrace): ?>
+    <div class="p-4 rounded-2xl bg-amber-50 border-2 border-amber-300 text-amber-900 text-xs">
+        <div class="font-black uppercase tracking-wider text-amber-800">⏳ Grace Period Active (<?= (int)($quota['grace_days_remaining'] ?? 0) ?> day(s) left)</div>
+        <p class="mt-0.5">
+            Your <strong><?= e($currentPlanName) ?></strong> plan ended on <strong><?= formatDate($quota['valid_until'], 'd M Y') ?></strong>. Renew or switch plan before <strong><?= formatDate($quota['grace_ends_on'], 'd M Y') ?></strong> to keep your <?= (int)$quota['max_allowed'] ?>-customer limit.
         </p>
     </div>
     <?php endif; ?>
@@ -61,11 +112,18 @@
     <div class="bg-white rounded-3xl border border-slate-200 p-6 md:p-8 shadow-sm">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
             <div>
-                <span class="text-xs px-2.5 py-1 rounded-full font-black uppercase tracking-wider <?= $quota['payment_status'] === 'active' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-blue-100 text-blue-800 border border-blue-300' ?>">
-                    <?= ucfirst($quota['payment_status']) ?> Subscription Plan
+                <span class="text-xs px-2.5 py-1 rounded-full font-black uppercase tracking-wider <?= $isExpired ? 'bg-rose-100 text-rose-800 border border-rose-300' : ($isInGrace ? 'bg-amber-100 text-amber-800 border border-amber-300' : ($isPaidActive ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-blue-100 text-blue-800 border border-blue-300')) ?>">
+                    <?= e($currentPlanName) ?> Plan
+                    <?= $currentCycle ? '• ' . ucfirst($currentCycle) : '' ?>
+                    <?= $isExpired ? ' (Expired)' : ($isInGrace ? ' (Grace Period)' : '') ?>
                 </span>
-                <h1 class="text-2xl font-black text-slate-900 mt-2">SaaS Quota & Capacity</h1>
-                <p class="text-xs text-slate-500 mt-0.5">Scale your dairy deliveries as your customer base expands.</p>
+                <h1 class="text-2xl font-black text-slate-900 mt-2">SaaS Plans & Capacity</h1>
+                <p class="text-xs text-slate-500 mt-0.5">
+                    Pick a simple Monthly or Yearly pack matching your active customers.
+                    <?php if (!empty($quota['valid_until'])): ?>
+                        • Valid until <strong><?= formatDate($quota['valid_until'], 'd M Y') ?></strong>
+                    <?php endif; ?>
+                </p>
             </div>
 
             <div class="text-left sm:text-right">
@@ -89,33 +147,35 @@
             </div>
         </div>
 
-        <!-- Quota Rule Explanation -->
+        <!-- Current Plan Summary -->
         <div class="py-6 border-b border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
             <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
-                <div class="text-[10px] uppercase font-black text-slate-400">Free Tier Allowance</div>
-                <div class="text-xl font-black text-slate-900 mt-1"><?= $quota['free_limit'] ?> Customers</div>
-                <p class="text-slate-500 mt-0.5">Free forever for startup milkmen.</p>
+                <div class="text-[10px] uppercase font-black text-slate-400">Active Plan</div>
+                <div class="text-xl font-black text-slate-900 mt-1"><?= e($currentPlanName) ?></div>
+                <p class="text-slate-500 mt-0.5">Free tier base: <?= (int)$quota['free_limit'] ?> customers.</p>
             </div>
             <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
-                <div class="text-[10px] uppercase font-black text-slate-400">Purchased Blocks</div>
-                <div class="text-xl font-black text-slate-900 mt-1"><?= $quota['purchased_blocks'] ?> Blocks</div>
-                <p class="text-slate-500 mt-0.5">+<?= $quota['purchased_blocks'] * $quota['unit_size'] ?> customer capacity slots.</p>
+                <div class="text-[10px] uppercase font-black text-slate-400">Allowed Customers</div>
+                <div class="text-xl font-black text-slate-900 mt-1"><?= (int)$quota['max_allowed'] ?> Max</div>
+                <p class="text-slate-500 mt-0.5"><?= (int)$quota['active_customers'] ?> active currently.</p>
             </div>
             <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
-                <div class="text-[10px] uppercase font-black text-slate-400">Block Pricing</div>
-                <div class="text-xl font-black text-blue-700 mt-1"><?= formatMoney($quota['unit_price'], $quota['currency_symbol']) ?></div>
-                <p class="text-slate-500 mt-0.5">per <?= $quota['unit_size'] ?> active customers.</p>
+                <div class="text-[10px] uppercase font-black text-slate-400">Renewal Rule</div>
+                <div class="text-sm font-black text-blue-700 mt-1">
+                    <?= !empty($quota['valid_until']) ? 'Exp: ' . formatDate($quota['valid_until'], 'd M Y') : 'No Expiry (Free)' ?>
+                </div>
+                <p class="text-slate-500 mt-0.5">Early renewal extends after current expiry.</p>
             </div>
         </div>
 
-        <!-- Offline Payment Upgrade Instructions (Approach 1) -->
+        <!-- Plan Selection & Offline Payment -->
         <div class="pt-6 space-y-6">
             <div>
                 <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
-                    <span>⚡ Purchase Additional Customer Capacity</span>
+                    <span>⚡ Subscribe, Renew, or Switch Plan</span>
                 </h3>
                 <p class="text-xs text-slate-500 mt-0.5">
-                    Follow the two simple steps below to transfer payment and submit your transaction ID (UTR) for instant verification.
+                    Renewing the same pack before expiry extends from your current expiry date. Switching to a smaller pack is available within <?= (int)($quota['renewal_window_days'] ?? 7) ?> days of expiry.
                 </p>
             </div>
 
@@ -127,7 +187,6 @@
                         <span class="text-xs text-slate-400">UPI / IMPS / NEFT</span>
                     </div>
 
-                    <!-- UPI Details -->
                     <div class="space-y-2">
                         <label class="text-[10px] font-black uppercase text-slate-400 tracking-wider">Official Platform UPI ID</label>
                         <div class="flex items-center justify-between bg-slate-800/80 px-3.5 py-2.5 rounded-xl border border-slate-700">
@@ -138,7 +197,6 @@
                         </div>
                     </div>
 
-                    <!-- UPI QR Code Visual -->
                     <?php 
                         $upiId = $bankDetails['upi_id'] ?? 'kaustubh51-3@okicici';
                         $accName = $bankDetails['account_name'] ?? 'DoodhBee SaaS';
@@ -161,7 +219,6 @@
                         </div>
                     </div>
 
-                    <!-- Direct Bank Transfer Details -->
                     <div class="pt-3 border-t border-slate-800 space-y-2 text-xs">
                         <div class="text-[10px] font-black uppercase text-slate-400">Direct Bank Transfer (IMPS / NEFT)</div>
                         <div class="grid grid-cols-2 gap-2 text-[11px]">
@@ -185,51 +242,89 @@
                     </div>
                 </div>
 
-                <!-- STEP 2: SUBMIT TRANSACTION UTR FORM -->
+                <!-- STEP 2: PLAN PICKER & SUBMIT UTR -->
                 <div class="bg-slate-50 p-6 rounded-2xl border border-slate-200 space-y-4">
                     <div class="flex items-center justify-between pb-3 border-b border-slate-200">
-                        <span class="text-[11px] font-black uppercase tracking-wider text-blue-700">Step 2: Submit Payment Details</span>
+                        <span class="text-[11px] font-black uppercase tracking-wider text-blue-700">Step 2: Choose Plan & Submit UTR</span>
                         <span class="text-xs text-slate-500">UTR Verification</span>
                     </div>
 
-                    <form method="POST" action="<?= url('/subscription/request-upgrade') ?>" class="space-y-4">
+                    <form method="POST" action="<?= url('/subscription/request-upgrade') ?>" class="space-y-4" id="plan-request-form">
                         <?= \App\Core\Auth::csrfField() ?>
 
-                        <!-- Block Selection -->
+                        <!-- Billing Cycle Toggle -->
                         <div>
                             <label class="block text-xs font-black uppercase text-slate-700 mb-2">
-                                Select Additional Capacity Blocks
+                                Billing Cycle
                             </label>
-                            <div class="grid grid-cols-3 gap-2">
-                                <label class="p-3 rounded-xl border-2 border-slate-200 bg-white hover:border-blue-500 cursor-pointer transition text-center flex flex-col justify-between">
-                                    <input type="radio" name="blocks" value="1" checked onchange="updatePayable(1, <?= (float)$quota['unit_price'] ?>, <?= (int)$quota['unit_size'] ?>)" class="mx-auto text-blue-600 mb-1">
-                                    <div class="font-black text-slate-900 text-xs">+<?= $quota['unit_size'] ?></div>
-                                    <div class="text-[10px] text-slate-500">1 Block</div>
-                                    <div class="font-black text-xs text-blue-700 mt-1"><?= formatMoney($quota['unit_price'] * 1, $quota['currency_symbol']) ?></div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <label class="p-2.5 rounded-xl border-2 border-slate-200 bg-white hover:border-blue-500 cursor-pointer transition text-center">
+                                    <input type="radio" name="billing_cycle" value="monthly" <?= ($currentCycle !== 'yearly') ? 'checked' : '' ?> onchange="refreshPlanCards()" class="mr-1 text-blue-600">
+                                    <span class="font-black text-xs text-slate-900">Monthly</span>
                                 </label>
-
-                                <label class="p-3 rounded-xl border-2 border-slate-200 bg-white hover:border-blue-500 cursor-pointer transition text-center flex flex-col justify-between">
-                                    <input type="radio" name="blocks" value="2" onchange="updatePayable(2, <?= (float)$quota['unit_price'] ?>, <?= (int)$quota['unit_size'] ?>)" class="mx-auto text-blue-600 mb-1">
-                                    <div class="font-black text-slate-900 text-xs">+<?= $quota['unit_size'] * 2 ?></div>
-                                    <div class="text-[10px] text-slate-500">2 Blocks</div>
-                                    <div class="font-black text-xs text-blue-700 mt-1"><?= formatMoney($quota['unit_price'] * 2, $quota['currency_symbol']) ?></div>
-                                </label>
-
-                                <label class="p-3 rounded-xl border-2 border-slate-200 bg-white hover:border-blue-500 cursor-pointer transition text-center flex flex-col justify-between">
-                                    <input type="radio" name="blocks" value="5" onchange="updatePayable(5, <?= (float)$quota['unit_price'] ?>, <?= (int)$quota['unit_size'] ?>)" class="mx-auto text-blue-600 mb-1">
-                                    <div class="font-black text-slate-900 text-xs">+<?= $quota['unit_size'] * 5 ?></div>
-                                    <div class="text-[10px] text-slate-500">5 Blocks</div>
-                                    <div class="font-black text-xs text-blue-700 mt-1"><?= formatMoney($quota['unit_price'] * 5, $quota['currency_symbol']) ?></div>
+                                <label class="p-2.5 rounded-xl border-2 border-slate-200 bg-white hover:border-emerald-500 cursor-pointer transition text-center">
+                                    <input type="radio" name="billing_cycle" value="yearly" <?= ($currentCycle === 'yearly') ? 'checked' : '' ?> onchange="refreshPlanCards()" class="mr-1 text-emerald-600">
+                                    <span class="font-black text-xs text-slate-900">Yearly (Save ~17%)</span>
                                 </label>
                             </div>
                         </div>
 
-                        <!-- Amount Display Banner -->
-                        <div class="p-3 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-between text-xs">
-                            <span class="font-bold text-slate-700">Total Payable Amount:</span>
-                            <span class="text-base font-black text-blue-800" id="display-amount">
-                                <?= formatMoney($quota['unit_price'] * 1, $quota['currency_symbol']) ?>
-                            </span>
+                        <!-- Named Plan Cards -->
+                        <div>
+                            <label class="block text-xs font-black uppercase text-slate-700 mb-2">
+                                Select Subscription Pack
+                            </label>
+                            <div class="space-y-2">
+                                <?php foreach ($paidPlans as $pp): ?>
+                                    <?php
+                                        $pid = (int)$pp['id'];
+                                        $isCurrent = ($pid === $currentPlanId && $isPaidActive);
+                                    ?>
+                                    <label class="block p-3.5 rounded-xl border-2 border-slate-200 bg-white hover:border-blue-500 cursor-pointer transition plan-card" data-plan-id="<?= $pid ?>">
+                                        <div class="flex items-center justify-between gap-2">
+                                            <div class="flex items-center gap-2.5">
+                                                <input type="radio" name="plan_id" value="<?= $pid ?>" <?= $pid === $defaultSelectedPlanId ? 'checked' : '' ?> onchange="refreshPlanCards()" class="text-blue-600">
+                                                <div>
+                                                    <div class="font-black text-xs text-slate-900 flex items-center gap-1.5">
+                                                        <span><?= e($pp['name']) ?></span>
+                                                        <?php if ($isCurrent): ?>
+                                                            <span class="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[9px] uppercase font-black">Current</span>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                    <div class="text-[11px] text-slate-500">Up to <strong><?= (int)$pp['customer_limit'] ?></strong> active customers</div>
+                                                </div>
+                                            </div>
+                                            <div class="text-right">
+                                                <div class="font-black text-sm text-blue-700 plan-card-price" data-plan-id="<?= $pid ?>">
+                                                    <?= formatMoney((float)$pp['monthly_price'], $currency) ?>
+                                                </div>
+                                                <div class="text-[10px] font-bold uppercase text-slate-400 plan-card-action" data-plan-id="<?= $pid ?>"></div>
+                                            </div>
+                                        </div>
+                                        <div class="text-[10px] text-rose-600 font-semibold mt-1 hidden plan-card-reason" data-plan-id="<?= $pid ?>"></div>
+                                    </label>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+
+                        <!-- Amount & GST Preview -->
+                        <div class="p-3.5 rounded-xl bg-blue-50 border border-blue-200 space-y-1.5 text-xs">
+                            <div class="flex items-center justify-between text-slate-600">
+                                <span>Base Plan Price:</span>
+                                <span class="font-bold" id="display-base-amount">—</span>
+                            </div>
+                            <div class="flex items-center justify-between text-slate-600" id="display-gst-row">
+                                <span id="display-gst-label">GST (18% Exclusive):</span>
+                                <span class="font-bold" id="display-gst-amount">—</span>
+                            </div>
+                            <div class="flex items-center justify-between pt-1 border-t border-blue-200">
+                                <span class="font-black text-slate-800">Total Payable (Incl. GST):</span>
+                                <span class="text-base font-black text-blue-800" id="display-amount">—</span>
+                            </div>
+                            <p class="text-[11px] text-blue-900" id="plan-action-note"></p>
+                            <p class="text-[10px] text-slate-500">
+                                Tax Invoice issued by <strong><?= e($pricing['company_legal_name'] ?? 'Shri Ram Open Source Technologies') ?></strong> (GSTIN: <span class="font-mono"><?= e($pricing['company_gstin'] ?? '27AARPE1865G1ZJ') ?></span>) via Email & WhatsApp upon approval.
+                            </p>
                         </div>
 
                         <!-- Payment Method -->
@@ -262,7 +357,7 @@
                             <input type="text" name="notes" placeholder="e.g. Paid from PhonePe number 9876543210" class="w-full text-xs px-3.5 py-2 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 text-slate-900">
                         </div>
 
-                        <button type="submit" class="tap-target w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-md transition flex items-center justify-center gap-2">
+                        <button type="submit" id="submit-plan-btn" class="tap-target w-full py-3.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white rounded-xl text-xs font-black shadow-md transition flex items-center justify-center gap-2">
                             <span>⚡ Submit Payment for Verification</span>
                         </button>
                     </form>
@@ -271,11 +366,11 @@
         </div>
     </div>
 
-    <!-- Upgrade Requests History -->
+    <!-- Subscription Requests History -->
     <?php if (!empty($upgradeRequests)): ?>
     <div class="bg-white rounded-3xl border border-slate-200 p-6 md:p-8 shadow-sm space-y-4">
         <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
-            <span>📋 Upgrade Request History</span>
+            <span>📋 Subscription Request History</span>
         </h3>
 
         <div class="overflow-x-auto">
@@ -283,8 +378,8 @@
                 <thead class="bg-slate-50 text-slate-400 font-bold uppercase text-[10px] border-b border-slate-200">
                     <tr>
                         <th class="p-3">Date</th>
-                        <th class="p-3">Plan Blocks</th>
-                        <th class="p-3">Customer Slots</th>
+                        <th class="p-3">Plan</th>
+                        <th class="p-3">Capacity</th>
                         <th class="p-3">Amount</th>
                         <th class="p-3">UTR / Ref</th>
                         <th class="p-3 text-center">Status</th>
@@ -297,13 +392,19 @@
                                 <?= formatDate($req['created_at'], 'd M Y, h:i A') ?>
                             </td>
                             <td class="p-3 font-bold text-slate-900">
-                                +<?= $req['blocks_requested'] ?> Block(s)
+                                <?php
+                                    $rName = $req['plan_name'] ?: ('+' . $req['blocks_requested'] . ' Block(s)');
+                                    $rType = ucfirst((string)($req['request_type'] ?? 'plan'));
+                                    $rCycle = ucfirst((string)($req['billing_cycle'] ?? 'monthly'));
+                                ?>
+                                <?= e($rName) ?>
+                                <span class="text-[10px] font-bold text-blue-700 block"><?= e($rCycle) ?> • <?= e($rType) ?></span>
                             </td>
                             <td class="p-3 text-emerald-700 font-bold">
-                                +<?= $req['customer_slots'] ?> Slots
+                                <?= (int)($req['customer_limit'] ?: $req['customer_slots']) ?> Customers
                             </td>
                             <td class="p-3 font-black text-slate-900">
-                                <?= formatMoney((float)$req['amount'], $quota['currency_symbol']) ?>
+                                <?= formatMoney((float)$req['amount'], $currency) ?>
                             </td>
                             <td class="p-3 font-mono text-[11px]">
                                 <span class="bg-slate-100 px-2 py-0.5 rounded font-black"><?= e($req['utr_number']) ?></span>
@@ -336,16 +437,159 @@
         </div>
     </div>
     <?php endif; ?>
+
+    <!-- Subscription GST Tax Invoices -->
+    <?php if (!empty($subInvoices)): ?>
+    <div class="bg-white rounded-3xl border border-slate-200 p-6 md:p-8 shadow-sm space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
+                <span>🧾 Subscription GST Tax Invoices</span>
+            </h3>
+            <span class="text-[11px] text-slate-500 font-semibold">
+                Issued by <?= e($pricing['company_legal_name'] ?? 'Shri Ram Open Source Technologies') ?> (GSTIN: <?= e($pricing['company_gstin'] ?? '27AARPE1865G1ZJ') ?>)
+            </span>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-slate-600">
+                <thead class="bg-slate-50 text-slate-400 font-bold uppercase text-[10px] border-b border-slate-200">
+                    <tr>
+                        <th class="p-3">Invoice No</th>
+                        <th class="p-3">Plan & Validity</th>
+                        <th class="p-3 text-right">Base</th>
+                        <th class="p-3 text-right">GST</th>
+                        <th class="p-3 text-right">Total</th>
+                        <th class="p-3 text-center">Delivery</th>
+                        <th class="p-3 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    <?php foreach ($subInvoices as $inv): ?>
+                        <tr class="hover:bg-slate-50/50">
+                            <td class="p-3 font-mono font-black text-slate-900 whitespace-nowrap">
+                                <?= e($inv['invoice_number']) ?>
+                                <div class="text-[10px] font-sans font-normal text-slate-400"><?= formatDate($inv['created_at'], 'd M Y') ?></div>
+                            </td>
+                            <td class="p-3">
+                                <span class="font-bold text-slate-900"><?= e($inv['plan_name']) ?> (<?= ucfirst(e($inv['billing_cycle'])) ?>)</span>
+                                <div class="text-[10px] text-slate-500"><?= formatDate($inv['period_start'], 'd M Y') ?> – <?= formatDate($inv['period_end'], 'd M Y') ?></div>
+                            </td>
+                            <td class="p-3 text-right font-medium"><?= formatMoney((float)$inv['base_amount'], $currency) ?></td>
+                            <td class="p-3 text-right text-slate-500"><?= formatMoney((float)$inv['gst_amount'], $currency) ?> (<?= number_format((float)$inv['gst_percentage'], 0) ?>%)</td>
+                            <td class="p-3 text-right font-black text-slate-900"><?= formatMoney((float)$inv['total_amount'], $currency) ?></td>
+                            <td class="p-3 text-center text-[10px]">
+                                <span class="inline-block px-1.5 py-0.5 rounded font-bold <?= $inv['email_status'] === 'sent' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600' ?>">
+                                    Email: <?= e($inv['email_status']) ?>
+                                </span>
+                                <span class="inline-block px-1.5 py-0.5 rounded font-bold mt-0.5 <?= $inv['whatsapp_status'] === 'sent' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-700' ?>">
+                                    WA: <?= e($inv['whatsapp_status']) ?>
+                                </span>
+                            </td>
+                            <td class="p-3 text-right whitespace-nowrap">
+                                <div class="flex items-center justify-end gap-1.5">
+                                    <a href="<?= url('/subscription/invoices/' . (int)$inv['id']) ?>" target="_blank" class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[11px]">View</a>
+                                    <a href="<?= url('/subscription/invoices/' . (int)$inv['id'] . '/pdf') ?>" target="_blank" class="px-2 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[11px]">PDF</a>
+                                    <?php if (!empty($inv['whatsapp_url'])): ?>
+                                        <a href="<?= e($inv['whatsapp_url']) ?>" target="_blank" class="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[11px]">WhatsApp</a>
+                                    <?php endif; ?>
+                                    <form method="POST" action="<?= url('/subscription/invoices/' . (int)$inv['id'] . '/resend') ?>" class="inline">
+                                        <?= \App\Core\Auth::csrfField() ?>
+                                        <button type="submit" class="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-[11px]">Resend</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <?php endif; ?>
 </div>
 
 <script>
-function updatePayable(blocks, unitPrice, unitSize) {
-    const total = (blocks * unitPrice).toFixed(2);
-    const amountElem = document.getElementById('display-amount');
-    if (amountElem) {
-        amountElem.innerText = '₹' + total;
+const PLAN_PREVIEWS = <?= json_encode(array_column($paidPlans, 'previews', 'id')) ?>;
+const PLAN_CURRENCY = <?= json_encode($currency) ?>;
+
+function refreshPlanCards() {
+    const cycleEl = document.querySelector('input[name="billing_cycle"]:checked');
+    const cycle = cycleEl ? cycleEl.value : 'monthly';
+
+    document.querySelectorAll('.plan-card').forEach((card) => {
+        const pid = card.getAttribute('data-plan-id');
+        const radio = card.querySelector('input[name="plan_id"]');
+        const preview = PLAN_PREVIEWS[pid] ? PLAN_PREVIEWS[pid][cycle] : null;
+        const priceEl = card.querySelector('.plan-card-price');
+        const actionEl = card.querySelector('.plan-card-action');
+        const reasonEl = card.querySelector('.plan-card-reason');
+
+        if (!preview) return;
+
+        if (priceEl) {
+            priceEl.innerText = PLAN_CURRENCY + Number(preview.base_amount).toFixed(2) + (Number(preview.gst_percentage) > 0 ? ' + GST' : '');
+        }
+        if (actionEl) {
+            actionEl.innerText = preview.allowed ? preview.action_type : 'unavailable';
+        }
+        if (preview.allowed) {
+            card.classList.remove('opacity-60', 'bg-slate-100');
+            card.classList.add('bg-white');
+            if (radio) radio.disabled = false;
+            if (reasonEl) {
+                reasonEl.classList.add('hidden');
+                reasonEl.innerText = '';
+            }
+        } else {
+            card.classList.add('opacity-60', 'bg-slate-100');
+            card.classList.remove('bg-white');
+            if (radio) radio.disabled = true;
+            if (reasonEl) {
+                reasonEl.classList.remove('hidden');
+                reasonEl.innerText = preview.reason || 'Unavailable';
+            }
+        }
+    });
+
+    let selectedRadio = document.querySelector('input[name="plan_id"]:checked');
+    if (selectedRadio && selectedRadio.disabled) {
+        const firstEnabled = document.querySelector('input[name="plan_id"]:not(:disabled)');
+        if (firstEnabled) {
+            firstEnabled.checked = true;
+            selectedRadio = firstEnabled;
+        }
     }
+
+    const baseElem = document.getElementById('display-base-amount');
+    const gstRow = document.getElementById('display-gst-row');
+    const gstLabel = document.getElementById('display-gst-label');
+    const gstElem = document.getElementById('display-gst-amount');
+    const amountElem = document.getElementById('display-amount');
+    const noteElem = document.getElementById('plan-action-note');
+    const submitBtn = document.getElementById('submit-plan-btn');
+
+    if (selectedRadio && !selectedRadio.disabled) {
+        const selPid = selectedRadio.value;
+        const selPrev = PLAN_PREVIEWS[selPid] ? PLAN_PREVIEWS[selPid][cycle] : null;
+        if (selPrev) {
+            if (baseElem) baseElem.innerText = PLAN_CURRENCY + Number(selPrev.base_amount).toFixed(2);
+            if (gstLabel) gstLabel.innerText = 'GST (' + Number(selPrev.gst_percentage).toFixed(0) + '% Exclusive):';
+            if (gstElem) gstElem.innerText = PLAN_CURRENCY + Number(selPrev.gst_amount).toFixed(2);
+            if (gstRow) gstRow.style.display = Number(selPrev.gst_percentage) > 0 ? 'flex' : 'none';
+            if (amountElem) amountElem.innerText = PLAN_CURRENCY + Number(selPrev.amount).toFixed(2);
+            if (noteElem) noteElem.innerText = selPrev.note || '';
+            if (submitBtn) submitBtn.disabled = false;
+            return;
+        }
+    }
+
+    if (baseElem) baseElem.innerText = '—';
+    if (gstElem) gstElem.innerText = '—';
+    if (amountElem) amountElem.innerText = '—';
+    if (noteElem) noteElem.innerText = 'No eligible plan available for your current active customer count.';
+    if (submitBtn) submitBtn.disabled = true;
 }
+
+document.addEventListener('DOMContentLoaded', refreshPlanCards);
 
 function copyToClipboard(elementId, btn) {
     const text = document.getElementById(elementId).innerText.trim();

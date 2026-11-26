@@ -467,49 +467,102 @@ runApiTest("API Settings: Profile, Tax & Surcharge Management", function() use (
 }, $passed, $failed);
 
 // ==========================================
-// TEST 11: Subscription & Quota Upgrade
+// TEST 11: Subscription & Named Plans Upgrade / Renewal
 // ==========================================
-runApiTest("API Subscription: Plan Capacity Upgrade", function() use (&$tenantToken) {
-    // 1. Fetch current subscription
-    $resSub = callApi('GET', '/api/subscription', [], $tenantToken);
-    if ($resSub['status'] !== 200 || !isset($resSub['body']['data']['quota']['max_allowed'])) {
-        throw new \Exception("Failed to fetch subscription quota");
-    }
-    $prevMax = (int)$resSub['body']['data']['quota']['max_allowed'];
+runApiTest("API Subscription: Named Plan Activation & Renewal", function() use (&$tenantToken, $db) {
+    $starterPlan = $db->fetchOne("SELECT id FROM subscription_plans WHERE code = 'starter' LIMIT 1");
+    $db->execute(
+        "UPDATE tenant_subscriptions SET plan_id = ?, purchased_blocks = 1, max_customers_allowed = 100, billing_cycle = 'yearly', valid_until = '2027-12-31', payment_status = 'active' WHERE tenant_id = 1",
+        [$starterPlan ? (int)$starterPlan['id'] : 2]
+    );
 
-    // 2. Upgrade by 1 block (+100 customers)
-    $resUpgrade = callApi('POST', '/api/subscription/upgrade', ['blocks' => 1], $tenantToken);
+    // 1. Fetch current subscription & plans
+    $resSub = callApi('GET', '/api/subscription', [], $tenantToken);
+    if ($resSub['status'] !== 200 || empty($resSub['body']['data']['plans'])) {
+        throw new \Exception("Failed to fetch subscription plans");
+    }
+
+    $plans = $resSub['body']['data']['plans'];
+    $growthPlan = null;
+    foreach ($plans as $p) {
+        if (($p['code'] ?? '') === 'growth') {
+            $growthPlan = $p;
+            break;
+        }
+    }
+    if (!$growthPlan) {
+        throw new \Exception("Growth plan missing from /api/subscription");
+    }
+
+    // 2. Activate Growth plan on monthly cycle (500 + 18% GST = 590)
+    $resUpgrade = callApi('POST', '/api/subscription/upgrade', [
+        'plan_id' => (int)$growthPlan['id'],
+        'billing_cycle' => 'monthly',
+    ], $tenantToken);
     if ($resUpgrade['status'] !== 200) {
-        throw new \Exception("Quota upgrade failed: " . json_encode($resUpgrade));
+        throw new \Exception("Plan activation failed: " . json_encode($resUpgrade));
     }
 
     $newMax = (int)$resUpgrade['body']['data']['quota']['max_allowed'];
-    if ($newMax !== $prevMax + 100) {
-        throw new \Exception("Expected max capacity {$prevMax} + 100 = " . ($prevMax + 100) . ", got {$newMax}");
+    if ($newMax !== (int)$growthPlan['customer_limit']) {
+        throw new \Exception("Expected max capacity {$growthPlan['customer_limit']}, got {$newMax}");
+    }
+    $subInv = $resUpgrade['body']['data']['invoice'] ?? null;
+    if (!$subInv || ($subInv['seller_gstin'] ?? '') !== '27AARPE1865G1ZJ' || abs((float)$subInv['total_amount'] - 590.0) > 0.01) {
+        throw new \Exception("Subscription GST invoice missing or wrong total: " . json_encode($subInv));
+    }
+
+    // 3. Renew same Growth plan on yearly cycle + verify /api/subscription/invoices & resend
+    $resRenew = callApi('POST', '/api/subscription/upgrade', [
+        'plan_id' => (int)$growthPlan['id'],
+        'billing_cycle' => 'yearly',
+    ], $tenantToken);
+    if ($resRenew['status'] !== 200 || ($resRenew['body']['data']['billing_cycle'] ?? '') !== 'yearly') {
+        throw new \Exception("Yearly plan renewal failed: " . json_encode($resRenew));
+    }
+
+    $resInvs = callApi('GET', '/api/subscription/invoices', [], $tenantToken);
+    if ($resInvs['status'] !== 200 || empty($resInvs['body']['data'])) {
+        throw new \Exception("Failed to fetch subscription invoices API");
+    }
+    $invId = (int)$resInvs['body']['data'][0]['id'];
+    $resResend = callApi('POST', "/api/subscription/invoices/{$invId}/resend", [], $tenantToken);
+    if ($resResend['status'] !== 200 || empty($resResend['body']['data']['whatsapp_url'])) {
+        throw new \Exception("Failed to resend subscription invoice notifications: " . json_encode($resResend));
     }
 }, $passed, $failed);
 
 // ==========================================
 // TEST 11b: Approach 1 - Offline Payment & SuperAdmin Verification
 // ==========================================
-runApiTest("API Subscription: Offline Payment UTR Submission & SuperAdmin Approval Flow", function() use (&$tenantToken, &$adminToken) {
-    // 1. Tenant verifies receiving bank details in subscription API
+runApiTest("API Subscription: Offline Payment UTR Submission & SuperAdmin Approval Flow", function() use (&$tenantToken, &$adminToken, $db) {
+    // 1. Tenant verifies receiving bank details & plans in subscription API
     $resSub = callApi('GET', '/api/subscription', [], $tenantToken);
     if ($resSub['status'] !== 200 || empty($resSub['body']['data']['bank_details']['upi_id'])) {
         throw new \Exception("Bank details missing from subscription response");
     }
-    $initialMax = (int)$resSub['body']['data']['quota']['max_allowed'];
+    $proPlan = null;
+    foreach ($resSub['body']['data']['plans'] as $p) {
+        if (($p['code'] ?? '') === 'pro') {
+            $proPlan = $p;
+            break;
+        }
+    }
+    if (!$proPlan) {
+        throw new \Exception("Pro plan missing");
+    }
 
     // 2. Validation: submitting without UTR should fail with 422
-    $resFail = callApi('POST', '/api/subscription/request-upgrade', ['blocks' => 1, 'utr_number' => ''], $tenantToken);
+    $resFail = callApi('POST', '/api/subscription/request-upgrade', ['plan_id' => (int)$proPlan['id'], 'utr_number' => ''], $tenantToken);
     if ($resFail['status'] !== 422) {
         throw new \Exception("Expected 422 for missing UTR, got {$resFail['status']}");
     }
 
-    // 3. Tenant submits offline payment request (2 blocks = +200 customer capacity)
+    // 3. Tenant submits offline payment request for Pro Monthly
     $testUtr = 'UTR' . time() . 'TEST';
     $resReq = callApi('POST', '/api/subscription/request-upgrade', [
-        'blocks' => 2,
+        'plan_id' => (int)$proPlan['id'],
+        'billing_cycle' => 'monthly',
         'utr_number' => $testUtr,
         'payment_method' => 'upi',
         'notes' => 'Test PhonePe payment'
@@ -525,7 +578,7 @@ runApiTest("API Subscription: Offline Payment UTR Submission & SuperAdmin Approv
 
     // 4. Duplicate pending UTR submission should be rejected
     $resDup = callApi('POST', '/api/subscription/request-upgrade', [
-        'blocks' => 2,
+        'plan_id' => (int)$proPlan['id'],
         'utr_number' => $testUtr
     ], $tenantToken);
     if ($resDup['status'] !== 422) {
@@ -551,7 +604,8 @@ runApiTest("API Subscription: Offline Payment UTR Submission & SuperAdmin Approv
     // 6. Test Rejection flow on a dummy request
     $rejectUtr = 'REJECT' . time();
     $resReq2 = callApi('POST', '/api/subscription/request-upgrade', [
-        'blocks' => 1,
+        'plan_id' => (int)$proPlan['id'],
+        'billing_cycle' => 'monthly',
         'utr_number' => $rejectUtr,
     ], $tenantToken);
     $rejectId = (int)$resReq2['body']['data']['id'];
@@ -575,12 +629,19 @@ runApiTest("API Subscription: Offline Payment UTR Submission & SuperAdmin Approv
         throw new \Exception("Request status not marked approved after SuperAdmin approval");
     }
 
-    // 8. Verify tenant quota was automatically upgraded by 2 blocks (+200 slots)
+    // 8. Verify tenant quota was updated to Pro customer_limit
     $resSubAfter = callApi('GET', '/api/subscription', [], $tenantToken);
     $finalMax = (int)$resSubAfter['body']['data']['quota']['max_allowed'];
-    if ($finalMax !== $initialMax + 200) {
-        throw new \Exception("Capacity not upgraded! Expected {$initialMax} + 200 = " . ($initialMax + 200) . ", got {$finalMax}");
+    if ($finalMax !== (int)$proPlan['customer_limit']) {
+        throw new \Exception("Capacity not updated to Pro! Expected {$proPlan['customer_limit']}, got {$finalMax}");
     }
+
+    // Reset Tenant 1 back to Starter Demo state so repeated test runs stay idempotent
+    $starterPlan = $db->fetchOne("SELECT id FROM subscription_plans WHERE code = 'starter' LIMIT 1");
+    $db->execute(
+        "UPDATE tenant_subscriptions SET plan_id = ?, purchased_blocks = 1, max_customers_allowed = 100, amount_paid = 2000.00, billing_cycle = 'yearly', valid_until = '2027-12-31', payment_status = 'active' WHERE tenant_id = 1",
+        [$starterPlan ? (int)$starterPlan['id'] : 2]
+    );
 }, $passed, $failed);
 
 // ==========================================
@@ -604,6 +665,9 @@ runApiTest("API Super Admin: Platform Stats, Settings & Tenant Governance", func
         'free_customer_limit' => 5,
         'paid_tier_unit_size' => 100,
         'paid_tier_unit_price' => 200.0,
+        'paid_tier_monthly_price' => 200.0,
+        'paid_tier_yearly_price' => 2000.0,
+        'subscription_grace_days' => 7,
         'currency_symbol' => '₹',
         'platform_name' => 'DoodhBee SaaS'
     ], $adminToken);

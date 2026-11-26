@@ -200,12 +200,12 @@
 
         <div class="bg-amber-50 rounded-2xl p-4 border border-amber-200 mb-6 text-xs text-amber-950 space-y-2">
             <div class="flex justify-between font-bold">
-                <span>Free Plan Allowance:</span>
-                <span><?= $quota['free_limit'] ?> Customers</span>
+                <span>Current Plan:</span>
+                <span><?= e($quota['plan_name'] ?? 'Free') ?><?= !empty($quota['billing_cycle']) ? ' (' . ucfirst($quota['billing_cycle']) . ')' : '' ?></span>
             </div>
             <div class="flex justify-between font-bold">
-                <span>Paid Capacity Added:</span>
-                <span><?= $quota['purchased_blocks'] * $quota['unit_size'] ?> Customers (<?= $quota['purchased_blocks'] ?> Blocks)</span>
+                <span>Active Customers:</span>
+                <span><?= $quota['active_customers'] ?> Customers</span>
             </div>
             <div class="flex justify-between text-base font-black border-t border-amber-200 pt-2 text-slate-900">
                 <span>Current Total Limit:</span>
@@ -214,21 +214,20 @@
         </div>
 
         <div class="bg-slate-50 rounded-2xl p-4 border border-slate-200 mb-6 text-center">
-            <span class="text-xs uppercase tracking-wider font-black text-blue-700 bg-blue-100 px-3 py-1 rounded-full">Recommended Upgrade</span>
-            <h4 class="text-xl font-black text-slate-900 mt-3">+<?= $quota['unit_size'] ?> Customer Capacity Block</h4>
-            <div class="text-3xl font-black text-slate-900 mt-1">
-                <?= formatMoney($quota['unit_price'], $quota['currency_symbol']) ?> <span class="text-xs font-semibold text-slate-500">/ block</span>
-            </div>
-            <p class="text-xs text-slate-500 mt-1">Instant activation • Keep expanding your delivery routes without interruptions</p>
+            <?php if (!empty($quota['is_expired'])): ?>
+                <span class="text-xs uppercase tracking-wider font-black text-rose-700 bg-rose-100 px-3 py-1 rounded-full">Subscription Expired</span>
+                <h4 class="text-xl font-black text-slate-900 mt-3">Renew Your <?= e($quota['plan_name'] ?? 'Paid') ?> Plan</h4>
+                <p class="text-xs text-slate-500 mt-1">Your plan expired and reverted to the free limit (<?= (int)$quota['free_limit'] ?> customers). Renew or pick a plan to restore higher capacity.</p>
+            <?php else: ?>
+                <span class="text-xs uppercase tracking-wider font-black text-blue-700 bg-blue-100 px-3 py-1 rounded-full">Upgrade Plan</span>
+                <h4 class="text-xl font-black text-slate-900 mt-3">Choose a Larger Monthly or Yearly Pack</h4>
+                <p class="text-xs text-slate-500 mt-1">Starter (100) • Growth (300) • Pro (1,000) active customers</p>
+            <?php endif; ?>
         </div>
 
-        <form method="POST" action="<?= url('/subscription/upgrade') ?>">
-            <?= \App\Core\Auth::csrfField() ?>
-            <input type="hidden" name="blocks" value="1">
-            <button type="submit" class="tap-target w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-2xl font-black text-sm shadow-xl transition">
-                ⚡ Upgrade Capacity (+<?= $quota['unit_size'] ?> Slots for <?= formatMoney($quota['unit_price'], $quota['currency_symbol']) ?>)
-            </button>
-        </form>
+        <a href="<?= url('/subscription') ?>" class="tap-target w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-2xl font-black text-sm shadow-xl transition flex items-center justify-center">
+            <?= !empty($quota['is_expired']) ? '⚡ Renew or Switch Plan' : '⚡ View Subscription Plans' ?>
+        </a>
     </div>
 </div>
 

@@ -81,10 +81,48 @@ try {
     }
     echo "• Tenant settings WhatsApp columns verified.\n";
 
-    // 3. Ensure subscription_upgrade_requests table exists (Approach 1: Offline Payment & UTR Verification)
+    // 3. Ensure subscription_plans table exists & default plans are seeded
+    $pdo->exec("CREATE TABLE IF NOT EXISTS subscription_plans (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        code VARCHAR(50) UNIQUE NOT NULL,
+        name VARCHAR(100) NOT NULL,
+        description VARCHAR(255) NULL,
+        customer_limit INT NOT NULL DEFAULT 5,
+        monthly_price DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+        yearly_price DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+        is_free TINYINT(1) NOT NULL DEFAULT 0,
+        is_active TINYINT(1) NOT NULL DEFAULT 1,
+        sort_order INT NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_plans_active (is_active, sort_order)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    $defaultPlans = [
+        ['free', 'Free', 'Up to 5 active customers free forever', 5, 0.00, 0.00, 1, 1, 1],
+        ['starter', 'Starter', 'Ideal for growing milk routes up to 100 customers', 100, 200.00, 2000.00, 0, 1, 2],
+        ['growth', 'Growth', 'For established dairies up to 300 active customers', 300, 500.00, 5000.00, 0, 1, 3],
+        ['pro', 'Pro', 'High-volume dairy operations up to 1,000 customers', 1000, 1200.00, 12000.00, 0, 1, 4],
+    ];
+    $planStmt = $pdo->prepare(
+        "INSERT INTO subscription_plans (code, name, description, customer_limit, monthly_price, yearly_price, is_free, is_active, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE code = code"
+    );
+    foreach ($defaultPlans as $p) {
+        $planStmt->execute($p);
+    }
+    echo "• Table subscription_plans verified.\n";
+
+    // 3b. Ensure subscription_upgrade_requests table exists (Approach 1: Offline Payment & UTR Verification)
     $pdo->exec("CREATE TABLE IF NOT EXISTS subscription_upgrade_requests (
         id INT AUTO_INCREMENT PRIMARY KEY,
         tenant_id INT NOT NULL,
+        plan_id INT NULL,
+        plan_name VARCHAR(100) NULL,
+        customer_limit INT NOT NULL DEFAULT 100,
+        request_type VARCHAR(30) NOT NULL DEFAULT 'plan',
+        billing_cycle ENUM('monthly', 'yearly') NOT NULL DEFAULT 'monthly',
         blocks_requested INT NOT NULL DEFAULT 1,
         customer_slots INT NOT NULL DEFAULT 100,
         amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
@@ -102,13 +140,113 @@ try {
         INDEX idx_sub_req_tenant (tenant_id, status),
         INDEX idx_sub_req_status (status, created_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-    echo "• Table subscription_upgrade_requests verified.\n";
+
+    // 3c. Ensure monthly/yearly & plan columns exist on tenant_subscriptions and subscription_upgrade_requests
+    $subCols = array_map(fn($c) => $c['Field'], $db->fetchAll("SHOW COLUMNS FROM tenant_subscriptions"));
+    if (!in_array('plan_id', $subCols, true)) {
+        $pdo->exec("ALTER TABLE tenant_subscriptions ADD COLUMN plan_id INT NULL AFTER tenant_id");
+    }
+    if (!in_array('billing_cycle', $subCols, true)) {
+        $pdo->exec("ALTER TABLE tenant_subscriptions ADD COLUMN billing_cycle ENUM('monthly', 'yearly') NULL DEFAULT NULL AFTER amount_paid");
+    }
+    if (!in_array('started_at', $subCols, true)) {
+        $pdo->exec("ALTER TABLE tenant_subscriptions ADD COLUMN started_at DATE NULL AFTER billing_cycle");
+    }
+
+    $reqCols = array_map(fn($c) => $c['Field'], $db->fetchAll("SHOW COLUMNS FROM subscription_upgrade_requests"));
+    if (!in_array('plan_id', $reqCols, true)) {
+        $pdo->exec("ALTER TABLE subscription_upgrade_requests ADD COLUMN plan_id INT NULL AFTER tenant_id");
+    }
+    if (!in_array('plan_name', $reqCols, true)) {
+        $pdo->exec("ALTER TABLE subscription_upgrade_requests ADD COLUMN plan_name VARCHAR(100) NULL AFTER plan_id");
+    }
+    if (!in_array('customer_limit', $reqCols, true)) {
+        $pdo->exec("ALTER TABLE subscription_upgrade_requests ADD COLUMN customer_limit INT NOT NULL DEFAULT 100 AFTER plan_name");
+    }
+    if (!in_array('request_type', $reqCols, true)) {
+        $pdo->exec("ALTER TABLE subscription_upgrade_requests ADD COLUMN request_type VARCHAR(30) NOT NULL DEFAULT 'plan' AFTER customer_limit");
+    } else {
+        $pdo->exec("ALTER TABLE subscription_upgrade_requests MODIFY COLUMN request_type VARCHAR(30) NOT NULL DEFAULT 'plan'");
+    }
+    if (!in_array('billing_cycle', $reqCols, true)) {
+        $pdo->exec("ALTER TABLE subscription_upgrade_requests ADD COLUMN billing_cycle ENUM('monthly', 'yearly') NOT NULL DEFAULT 'monthly' AFTER request_type");
+    }
+    if (!in_array('base_amount', $reqCols, true)) {
+        $pdo->exec("ALTER TABLE subscription_upgrade_requests ADD COLUMN base_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00 AFTER customer_slots");
+    }
+    if (!in_array('gst_percentage', $reqCols, true)) {
+        $pdo->exec("ALTER TABLE subscription_upgrade_requests ADD COLUMN gst_percentage DECIMAL(5, 2) NOT NULL DEFAULT 18.00 AFTER base_amount");
+    }
+    if (!in_array('gst_amount', $reqCols, true)) {
+        $pdo->exec("ALTER TABLE subscription_upgrade_requests ADD COLUMN gst_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00 AFTER gst_percentage");
+    }
+
+    // 3d. Ensure subscription_invoices table exists
+    $pdo->exec("CREATE TABLE IF NOT EXISTS subscription_invoices (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        invoice_number VARCHAR(50) UNIQUE NOT NULL,
+        tenant_id INT NOT NULL,
+        upgrade_request_id INT NULL,
+        plan_id INT NULL,
+        plan_name VARCHAR(100) NOT NULL,
+        billing_cycle ENUM('monthly', 'yearly') NOT NULL DEFAULT 'monthly',
+        customer_limit INT NOT NULL DEFAULT 100,
+        action_type VARCHAR(30) NOT NULL DEFAULT 'subscribe',
+        period_start DATE NOT NULL,
+        period_end DATE NOT NULL,
+        base_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+        gst_percentage DECIMAL(5, 2) NOT NULL DEFAULT 18.00,
+        cgst_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+        sgst_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+        gst_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+        total_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+        payment_method VARCHAR(50) NOT NULL DEFAULT 'upi',
+        utr_number VARCHAR(100) NULL,
+        seller_name VARCHAR(150) NOT NULL DEFAULT 'Shri Ram Open Source Technologies',
+        seller_gstin VARCHAR(30) NOT NULL DEFAULT '27AARPE1865G1ZJ',
+        sac_code VARCHAR(20) NOT NULL DEFAULT '998314',
+        buyer_business_name VARCHAR(150) NOT NULL,
+        buyer_owner_name VARCHAR(100) NOT NULL,
+        buyer_phone VARCHAR(20) NOT NULL,
+        buyer_email VARCHAR(100) NULL,
+        email_status ENUM('pending', 'sent', 'skipped', 'failed') NOT NULL DEFAULT 'pending',
+        email_error TEXT NULL,
+        emailed_at DATETIME NULL,
+        whatsapp_status ENUM('pending', 'sent', 'queued_link', 'failed') NOT NULL DEFAULT 'pending',
+        whatsapp_url TEXT NULL,
+        whatsapp_sent_at DATETIME NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+        INDEX idx_sub_inv_tenant (tenant_id, created_at),
+        INDEX idx_sub_inv_req (upgrade_request_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    echo "• Table subscription_invoices verified.\n";
+
+    // Backfill plan_id for existing tenant_subscriptions if NULL
+    $starterPlanId = (int)$db->fetchValue("SELECT id FROM subscription_plans WHERE code = 'starter' LIMIT 1");
+    $freePlanId = (int)$db->fetchValue("SELECT id FROM subscription_plans WHERE code = 'free' LIMIT 1");
+    if ($freePlanId > 0) {
+        $pdo->prepare("UPDATE tenant_subscriptions SET plan_id = ? WHERE plan_id IS NULL AND purchased_blocks = 0")->execute([$freePlanId]);
+    }
+    if ($starterPlanId > 0) {
+        $pdo->prepare("UPDATE tenant_subscriptions SET plan_id = ? WHERE plan_id IS NULL AND purchased_blocks > 0")->execute([$starterPlanId]);
+    }
+    echo "• Table subscription_upgrade_requests and plan columns verified.\n";
 
     // Ensure default system settings exist
     $defaultSettings = [
         'free_customer_limit' => '5',
         'paid_tier_unit_size' => '100',
         'paid_tier_unit_price' => '200.00',
+        'paid_tier_monthly_price' => '200.00',
+        'paid_tier_yearly_price' => '2000.00',
+        'subscription_grace_days' => '7',
+        'subscription_gst_enabled' => '1',
+        'subscription_gst_percentage' => '18.00',
+        'company_legal_name' => 'Shri Ram Open Source Technologies',
+        'company_gstin' => '27AARPE1865G1ZJ',
+        'company_sac_code' => '998314',
+        'company_address' => 'Maharashtra, India',
         'currency_symbol' => '₹',
         'platform_name' => 'DoodhBee SaaS',
         'support_email' => 'hello@doodhbee.com',

@@ -48,5 +48,9 @@
     </div>
 
     <?= $content ?>
+
+    <footer class="no-print max-w-3xl mx-auto mt-6 px-4 text-center text-xs text-slate-500">
+        © <?= date('Y') ?> <strong class="text-slate-700">Shri Ram Open Source Technologies</strong>. All rights reserved.
+    </footer>
 </body>
 </html>

@@ -1,6 +1,10 @@
 <?php
 declare(strict_types=1);
 
+if (!defined('DOODHBEE_TEST_RUNNER')) {
+    define('DOODHBEE_TEST_RUNNER', true);
+}
+
 require_once __DIR__ . '/../vendor/autoload.php';
 
 use App\Core\Database;
@@ -156,7 +160,8 @@ runTest("Vacation / Leave Auto-Detection in Daily Run-Sheet", function() use ($d
 // TEST 4: Customer Quota Guard & Paywall
 runTest("Customer Quota Guard: Free Tier 5-Limit Enforcement", function() use ($quotaService, $db) {
     // Reset Tenant 2 to free tier
-    $db->execute("UPDATE tenant_subscriptions SET purchased_blocks = 0, max_customers_allowed = 5, payment_status = 'free' WHERE tenant_id = 2");
+    $freePlanId = (int)$db->fetchValue("SELECT id FROM subscription_plans WHERE is_free = 1 LIMIT 1");
+    $db->execute("UPDATE tenant_subscriptions SET plan_id = ?, purchased_blocks = 0, max_customers_allowed = 5, billing_cycle = NULL, valid_until = NULL, payment_status = 'free' WHERE tenant_id = 2", [$freePlanId ?: null]);
 
     $quota = $quotaService->getTenantQuota(2);
     if ($quota['max_allowed'] !== 5) {
@@ -186,7 +191,7 @@ runTest("Customer Quota Guard: Free Tier 5-Limit Enforcement", function() use ($
 
     // Clean up test customer and reset
     $db->execute("DELETE FROM customers WHERE tenant_id = 2 AND phone = '9999900005'");
-    $db->execute("UPDATE tenant_subscriptions SET purchased_blocks = 0, max_customers_allowed = 5, payment_status = 'free' WHERE tenant_id = 2");
+    $db->execute("UPDATE tenant_subscriptions SET plan_id = ?, purchased_blocks = 0, max_customers_allowed = 5, billing_cycle = NULL, valid_until = NULL, payment_status = 'free' WHERE tenant_id = 2", [$freePlanId ?: null]);
 }, $passed, $failed);
 
 // TEST 5: Exact 4-Step Invoice Billing Engine Formula
@@ -1011,6 +1016,134 @@ runTest("Customer Monthly Milk Card: Interactive Matrix & Upsert", function() us
     }
     if ($day2['shifts']['morning']['status'] !== 'skipped' || (float)$day2['shifts']['morning']['quantity'] !== 0.0) {
         throw new \Exception("Day 2 zero-charge skip failed: " . json_encode($day2));
+    }
+}, $passed, $failed);
+
+// TEST 19: Named Subscription Plans, Early Renewal, Mid-Cycle Upgrade, 7-Day Downgrade & Grace/Expiry
+runTest("SaaS Plans: Named Packs, Early Renewal, Mid-Cycle Upgrade, Downgrade Window & Soft Downgrade", function() use ($quotaService, $db) {
+    $origSub = $db->fetchOne("SELECT * FROM tenant_subscriptions WHERE tenant_id = 2");
+    $starter = $quotaService->getPlanByCode('starter');
+    $growth = $quotaService->getPlanByCode('growth');
+    $pro = $quotaService->getPlanByCode('pro');
+    if (!$starter || !$growth || !$pro) {
+        throw new \Exception("Default subscription plans missing");
+    }
+
+    try {
+        // 1. Subscribe Tenant 2 to Starter (Monthly) -> 100 max, expires +1 month
+        $q1 = $quotaService->applyPlanSubscription(2, (int)$starter['id'], 'monthly');
+        $exp1 = (new DateTimeImmutable('today'))->modify('+1 month')->format('Y-m-d');
+        if ($q1['plan_code'] !== 'starter' || $q1['max_allowed'] !== 100 || $q1['valid_until'] !== $exp1) {
+            throw new \Exception("Starter subscribe mismatch: " . json_encode($q1));
+        }
+
+        // 2. Early renewal of SAME pack (Starter Monthly): base 200.00 + 18% GST (36.00) = 236.00, new cycle starts after exp1
+        $renewPreview = $quotaService->previewPlanSelection(2, (int)$starter['id'], 'monthly');
+        $exp2 = (new DateTimeImmutable($exp1))->modify('+1 month')->format('Y-m-d');
+        if (!$renewPreview['allowed'] || $renewPreview['action_type'] !== 'renew' || abs((float)$renewPreview['base_amount'] - 200.0) > 0.01 || abs((float)$renewPreview['gst_amount'] - 36.0) > 0.01 || abs((float)$renewPreview['amount'] - 236.0) > 0.01 || $renewPreview['new_valid_until'] !== $exp2) {
+            throw new \Exception("Early same-pack renewal preview mismatch: " . json_encode($renewPreview));
+        }
+        $q2 = $quotaService->applyPlanSubscription(2, (int)$starter['id'], 'monthly');
+        if ($q2['valid_until'] !== $exp2) {
+            throw new \Exception("Early renewal valid_until mismatch: " . json_encode($q2));
+        }
+
+        // 3. Mid-cycle upgrade Starter -> Growth (same cycle, >7 days left): base diff 300.00 + 18% GST (54.00) = 354.00, keeps exp2
+        $upgPreview = $quotaService->previewPlanSelection(2, (int)$growth['id'], 'monthly');
+        if (!$upgPreview['allowed'] || $upgPreview['action_type'] !== 'upgrade' || abs((float)$upgPreview['base_amount'] - 300.0) > 0.01 || abs((float)$upgPreview['gst_amount'] - 54.0) > 0.01 || abs((float)$upgPreview['amount'] - 354.0) > 0.01 || $upgPreview['new_valid_until'] !== $exp2) {
+            throw new \Exception("Mid-cycle upgrade preview mismatch: " . json_encode($upgPreview));
+        }
+        $q3 = $quotaService->applyPlanSubscription(2, (int)$growth['id'], 'monthly');
+        if ($q3['plan_code'] !== 'growth' || $q3['max_allowed'] !== 300 || $q3['valid_until'] !== $exp2) {
+            throw new \Exception("Growth upgrade failed: " . json_encode($q3));
+        }
+
+        // 4. Downgrade Growth -> Starter blocked outside 7-day renewal window
+        $earlyDown = $quotaService->previewPlanSelection(2, (int)$starter['id'], 'monthly');
+        if ($earlyDown['allowed'] !== false) {
+            throw new \Exception("Downgrade should be blocked outside 7-day renewal window");
+        }
+
+        // 5. Within 7-day renewal window (valid_until 3 days from today): downgrade allowed, extends from valid_until
+        $threeDaysLater = (new DateTimeImmutable('today'))->modify('+3 days')->format('Y-m-d');
+        $db->execute("UPDATE tenant_subscriptions SET valid_until = ?, payment_status = 'active' WHERE tenant_id = 2", [$threeDaysLater]);
+        $windowDown = $quotaService->previewPlanSelection(2, (int)$starter['id'], 'yearly');
+        $expectedWindowEnd = (new DateTimeImmutable($threeDaysLater))->modify('+1 year')->format('Y-m-d');
+        if (!$windowDown['allowed'] || $windowDown['action_type'] !== 'downgrade' || $windowDown['new_valid_until'] !== $expectedWindowEnd) {
+            throw new \Exception("Downgrade within 7-day window failed: " . json_encode($windowDown));
+        }
+        $q4 = $quotaService->applyPlanSubscription(2, (int)$starter['id'], 'yearly');
+        if ($q4['plan_code'] !== 'starter' || $q4['billing_cycle'] !== 'yearly' || $q4['max_allowed'] !== 100 || $q4['valid_until'] !== $expectedWindowEnd) {
+            throw new \Exception("Applying downgrade within renewal window failed: " . json_encode($q4));
+        }
+
+        // 6. Grace period (valid_until 2 days ago) -> still active max_allowed, is_in_grace = true
+        $twoDaysAgo = (new DateTimeImmutable('today'))->modify('-2 days')->format('Y-m-d');
+        $db->execute("UPDATE tenant_subscriptions SET valid_until = ?, payment_status = 'active' WHERE tenant_id = 2", [$twoDaysAgo]);
+        $graceQuota = $quotaService->getTenantQuota(2);
+        if (!$graceQuota['is_in_grace'] || $graceQuota['is_expired'] || $graceQuota['max_allowed'] !== 100) {
+            throw new \Exception("Grace period enforcement mismatch: " . json_encode($graceQuota));
+        }
+
+        // 7. Expired past grace (valid_until 15 days ago) -> soft downgrade to free_limit
+        $fifteenDaysAgo = (new DateTimeImmutable('today'))->modify('-15 days')->format('Y-m-d');
+        $db->execute("UPDATE tenant_subscriptions SET valid_until = ?, payment_status = 'active' WHERE tenant_id = 2", [$fifteenDaysAgo]);
+        $expiredQuota = $quotaService->getTenantQuota(2);
+        if (!$expiredQuota['is_expired'] || $expiredQuota['is_in_grace'] || $expiredQuota['max_allowed'] !== $expiredQuota['free_limit'] || $expiredQuota['payment_status'] !== 'expired') {
+            throw new \Exception("Soft downgrade on expiry failed: " . json_encode($expiredQuota));
+        }
+
+        // 8. UTR request + SuperAdmin approval for Pro (Yearly): 12000 + 18% GST (2160) = 14160 + Tax Invoice + Email/WA
+        $utr = 'PLAN' . time();
+        $req = $quotaService->createPlanRequest(2, (int)$pro['id'], $utr, 'upi', 'Pro yearly test', null, 'yearly');
+        if (($req['plan_name'] ?? '') !== 'Pro' || ($req['billing_cycle'] ?? '') !== 'yearly' || abs((float)$req['base_amount'] - 12000.0) > 0.01 || abs((float)$req['gst_amount'] - 2160.0) > 0.01 || abs((float)$req['amount'] - 14160.0) > 0.01) {
+            throw new \Exception("Plan UTR request GST mismatch: " . json_encode($req));
+        }
+        $approved = $quotaService->approveUpgradeRequest((int)$req['id'], 1, 'Verified Pro payment');
+        if (($approved['quota']['plan_code'] ?? '') !== 'pro' || ($approved['quota']['max_allowed'] ?? 0) !== 1000) {
+            throw new \Exception("Plan UTR approval mismatch: " . json_encode($approved));
+        }
+        $inv = $approved['invoice'] ?? null;
+        if (
+            !$inv
+            || ($inv['seller_name'] ?? '') !== 'Shri Ram Open Source Technologies'
+            || ($inv['seller_gstin'] ?? '') !== '27AARPE1865G1ZJ'
+            || abs((float)$inv['total_amount'] - 14160.0) > 0.01
+            || ($inv['email_status'] ?? '') !== 'sent'
+            || empty($inv['whatsapp_url'])
+        ) {
+            throw new \Exception("Subscription GST invoice or dispatch mismatch: " . json_encode($inv));
+        }
+
+        // Verify invoice HTML & PDF binary generation
+        $invSvc = new \App\Services\SubscriptionInvoiceService($db);
+        $html = $invSvc->renderInvoiceHtml($inv, true);
+        if (strpos($html, '27AARPE1865G1ZJ') === false || strpos($html, 'Shri Ram Open Source Technologies') === false || strpos($html, 'All rights reserved') === false) {
+            throw new \Exception("Subscription tax invoice HTML missing GSTIN/company/footer");
+        }
+        $pdfBytes = $invSvc->renderInvoicePdfBytes($inv);
+        if (substr($pdfBytes, 0, 4) !== '%PDF') {
+            throw new \Exception("Subscription tax invoice PDF generation failed");
+        }
+
+        $db->execute("DELETE FROM subscription_upgrade_requests WHERE id = ?", [(int)$req['id']]);
+    } finally {
+        $db->execute("DELETE FROM subscription_invoices WHERE tenant_id = 2");
+        if ($origSub) {
+            $db->execute(
+                "UPDATE tenant_subscriptions SET plan_id = ?, purchased_blocks = ?, max_customers_allowed = ?, amount_paid = ?, billing_cycle = ?, started_at = ?, valid_until = ?, payment_status = ? WHERE tenant_id = 2",
+                [
+                    $origSub['plan_id'] ?? null,
+                    $origSub['purchased_blocks'],
+                    $origSub['max_customers_allowed'],
+                    $origSub['amount_paid'],
+                    $origSub['billing_cycle'] ?? null,
+                    $origSub['started_at'] ?? null,
+                    $origSub['valid_until'],
+                    $origSub['payment_status'],
+                ]
+            );
+        }
     }
 }, $passed, $failed);
 

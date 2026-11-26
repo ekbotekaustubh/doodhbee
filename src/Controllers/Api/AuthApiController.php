@@ -181,11 +181,13 @@ final class AuthApiController extends ApiBaseController
                 [$tenantId]
             );
 
-            $freeLimit = $this->quotaService->getFreeCustomerLimit();
+            $freePlan = $this->quotaService->getFreePlan();
+            $freePlanId = $freePlan ? (int)$freePlan['id'] : null;
+            $freeLimit = $freePlan ? (int)$freePlan['customer_limit'] : $this->quotaService->getFreeCustomerLimit();
             $this->db->execute(
-                "INSERT INTO tenant_subscriptions (tenant_id, purchased_blocks, max_customers_allowed, amount_paid, payment_status)
-                 VALUES (?, 0, ?, 0.00, 'free')",
-                [$tenantId, $freeLimit]
+                "INSERT INTO tenant_subscriptions (tenant_id, plan_id, purchased_blocks, max_customers_allowed, amount_paid, payment_status)
+                 VALUES (?, ?, 0, ?, 0.00, 'free')",
+                [$tenantId, $freePlanId, $freeLimit]
             );
 
             // Default products

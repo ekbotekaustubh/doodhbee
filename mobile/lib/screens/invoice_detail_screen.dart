@@ -87,6 +87,36 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     );
   }
 
+  Future<void> _sendWhatsAppPdfDirect() async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Dispatching invoice PDF via WhatsApp...')),
+    );
+    try {
+      final res = await _api.post('${ApiConstants.invoices}/${widget.invoiceId}/send-whatsapp');
+      if (!mounted) return;
+      if (res.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(res.message ?? 'Invoice PDF sent successfully via WhatsApp!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        _loadInvoiceDetail();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(res.error ?? 'Failed to send PDF. Opening WhatsApp chat...'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        await _shareOnWhatsApp();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      await _shareOnWhatsApp();
+    }
+  }
+
   void _showUpiQrDialog() {
     final upiId = _settings?['upi_id'] ?? 'krushnadairy@oksbi';
     final balance = _toDouble(_invoice?['final_amount']);
@@ -334,9 +364,9 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: _shareOnWhatsApp,
+                    onPressed: _sendWhatsAppPdfDirect,
                     icon: const Icon(Icons.send, size: 18),
-                    label: const Text('WhatsApp Bill'),
+                    label: const Text('Send WhatsApp PDF'),
                     style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF25D366)),
                   ),
                 ),

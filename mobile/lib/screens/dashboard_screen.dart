@@ -175,9 +175,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            'Tier: ${_quota?['payment_status'] == 'active' ? 'Paid Extended Tier' : 'Free 5-Customer Tier'}',
-                            style: const TextStyle(fontSize: 11, color: Color(0xFF1E40AF)),
+                          Expanded(
+                            child: Text(
+                              _quota?['is_expired'] == true
+                                  ? '${_quota?['plan_name'] ?? 'Plan'} Expired • Free Tier'
+                                  : _quota?['is_in_grace'] == true
+                                      ? '${_quota?['plan_name'] ?? 'Plan'} Grace (${_quota?['grace_days_remaining'] ?? 0}d left)'
+                                      : _quota?['is_paid_active'] == true
+                                          ? '${_quota?['plan_name'] ?? 'Paid'} (${(_quota?['billing_cycle'] ?? 'monthly').toString().toUpperCase()}) • Exp: ${_quota?['valid_until'] ?? '-'}'
+                                          : 'Free Tier (${_quota?['free_limit'] ?? 5} max)',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: (_quota?['is_expired'] == true || _quota?['is_in_grace'] == true) ? FontWeight.bold : FontWeight.normal,
+                                color: _quota?['is_expired'] == true
+                                    ? Colors.red.shade700
+                                    : _quota?['is_in_grace'] == true
+                                        ? Colors.orange.shade800
+                                        : const Color(0xFF1E40AF),
+                              ),
+                            ),
                           ),
                           InkWell(
                             onTap: () async {
@@ -187,11 +203,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               );
                               _loadDashboard();
                             },
-                            child: const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
                               child: Text(
-                                'Upgrade Plan ⚡',
-                                style: TextStyle(
+                                (_quota?['is_expired'] == true || _quota?['is_in_grace'] == true) ? 'Renew Plan ⚡' : 'Upgrade Plan ⚡',
+                                style: const TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
                                   color: Color(0xFF1E40AF),

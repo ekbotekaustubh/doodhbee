@@ -258,6 +258,145 @@ final class WhatsAppService
     }
 
     /**
+     * Dispatch a single queued message record immediately through the provider pipeline.
+     * Shared by both the background cron loop and real-time single-send actions.
+     *
+     * @param int $messageId
+     * @param string|null $overrideProvider Optional provider override (e.g. 'meta_cloud')
+     * @return array{success: bool, message_id?: string, status?: string, error?: string, provider?: string}
+     */
+    public function processSingleMessage(int $messageId, ?string $overrideProvider = null): array
+    {
+        $msg = $this->db->fetchOne(
+            "SELECT wm.*, ts.whatsapp_provider, ts.whatsapp_api_token, ts.whatsapp_phone_number_id
+             FROM whatsapp_messages wm
+             LEFT JOIN tenant_settings ts ON ts.tenant_id = wm.tenant_id
+             WHERE wm.id = ?",
+            [$messageId]
+        );
+
+        if (!$msg) {
+            return ['success' => false, 'error' => 'WhatsApp message record not found.'];
+        }
+
+        $provider = $overrideProvider ?: ($msg['whatsapp_provider'] ?: ($msg['provider'] ?: 'browser'));
+
+        // Mark as processing and increment attempts
+        $this->db->execute(
+            "UPDATE whatsapp_messages SET status = 'processing', provider = ?, attempts = attempts + 1 WHERE id = ?",
+            [$provider, $messageId]
+        );
+
+        // Update local array for dispatch
+        $msg['provider'] = $provider;
+
+        try {
+            $sendResult = $this->dispatchToProvider($msg, $provider);
+
+            if ($sendResult['success']) {
+                $this->db->execute(
+                    "UPDATE whatsapp_messages SET status = 'sent', provider_message_id = ?, sent_at = ?, error_message = NULL WHERE id = ?",
+                    [$sendResult['message_id'] ?? null, date('Y-m-d H:i:s'), $messageId]
+                );
+                return [
+                    'success' => true,
+                    'message_id' => $sendResult['message_id'] ?? null,
+                    'status' => 'sent',
+                    'provider' => $provider,
+                ];
+            } else {
+                $newStatus = ((int)$msg['attempts'] + 1 >= (int)$msg['max_attempts']) ? 'failed' : 'pending';
+                $this->db->execute(
+                    "UPDATE whatsapp_messages SET status = ?, error_message = ? WHERE id = ?",
+                    [$newStatus, $sendResult['error'] ?? 'Delivery failed.', $messageId]
+                );
+                return [
+                    'success' => false,
+                    'error' => $sendResult['error'] ?? 'Delivery failed.',
+                    'status' => $newStatus,
+                    'provider' => $provider,
+                ];
+            }
+        } catch (\Throwable $e) {
+            $newStatus = ((int)$msg['attempts'] + 1 >= (int)$msg['max_attempts']) ? 'failed' : 'pending';
+            $this->db->execute(
+                "UPDATE whatsapp_messages SET status = ?, error_message = ? WHERE id = ?",
+                [$newStatus, $e->getMessage(), $messageId]
+            );
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+                'status' => $newStatus,
+                'provider' => $provider,
+            ];
+        }
+    }
+
+    /**
+     * Enqueue and immediately send a single invoice using the exact same cron pipeline.
+     *
+     * @param int $tenantId
+     * @param int $invoiceId
+     * @param string|null $forceProvider Force 'meta_cloud', 'browser', etc.
+     * @return array{success: bool, message_id?: string, status?: string, error?: string, provider?: string, recipient_phone?: string}
+     */
+    public function sendSingleInvoiceNow(int $tenantId, int $invoiceId, ?string $forceProvider = null): array
+    {
+        // 1. Enqueue using existing enqueueInvoices()
+        $enqueueRes = $this->enqueueInvoices($tenantId, [$invoiceId]);
+
+        $messageId = $enqueueRes['message_ids'][0] ?? null;
+        if (!$messageId) {
+            // Check if there is an existing message for this invoice
+            $existing = $this->db->fetchOne(
+                "SELECT id, status, attempts, max_attempts FROM whatsapp_messages 
+                 WHERE tenant_id = ? AND invoice_id = ? 
+                 ORDER BY id DESC LIMIT 1",
+                [$tenantId, $invoiceId]
+            );
+
+            if ($existing) {
+                $messageId = (int)$existing['id'];
+                // Reset failed message so it can be dispatched again immediately
+                if ($existing['status'] === 'failed' || (int)$existing['attempts'] >= (int)$existing['max_attempts']) {
+                    $this->db->execute(
+                        "UPDATE whatsapp_messages SET status = 'pending', attempts = 0, error_message = NULL WHERE id = ?",
+                        [$messageId]
+                    );
+                }
+            }
+        }
+
+        if (!$messageId) {
+            return [
+                'success' => false,
+                'error' => 'Unable to queue invoice. Please check that the customer has a valid phone number.',
+            ];
+        }
+
+        // 2. Immediately process through the exact same engine
+        return $this->processSingleMessage($messageId, $forceProvider);
+    }
+
+    /**
+     * Get the latest WhatsApp message status for a specific invoice.
+     *
+     * @param int $tenantId
+     * @param int $invoiceId
+     * @return array|null
+     */
+    public function getInvoiceMessageStatus(int $tenantId, int $invoiceId): ?array
+    {
+        return $this->db->fetchOne(
+            "SELECT id, status, provider, provider_message_id, sent_at, error_message, created_at, attempts
+             FROM whatsapp_messages
+             WHERE tenant_id = ? AND invoice_id = ?
+             ORDER BY id DESC LIMIT 1",
+            [$tenantId, $invoiceId]
+        );
+    }
+
+    /**
      * Process pending messages in the queue (invoked by Cron or CLI).
      *
      * @param int $limit Maximum messages to process per run
@@ -305,39 +444,19 @@ final class WhatsAppService
                 continue;
             }
 
-            // Mark as processing
-            $this->db->execute(
-                "UPDATE whatsapp_messages SET status = 'processing', attempts = attempts + 1 WHERE id = ?",
-                [$msgId]
-            );
+            $res = $this->processSingleMessage($msgId);
 
-            try {
-                $sendResult = $this->dispatchToProvider($msg, $provider);
-
-                if ($sendResult['success']) {
-                    $this->db->execute(
-                        "UPDATE whatsapp_messages SET status = 'sent', provider_message_id = ?, sent_at = ?, error_message = NULL WHERE id = ?",
-                        [$sendResult['message_id'] ?? null, date('Y-m-d H:i:s'), $msgId]
-                    );
-                    $sentCount++;
-                    $details[] = ['id' => $msgId, 'status' => 'sent', 'provider' => $provider];
-                } else {
-                    $newStatus = ((int)$msg['attempts'] + 1 >= (int)$msg['max_attempts']) ? 'failed' : 'pending';
-                    $this->db->execute(
-                        "UPDATE whatsapp_messages SET status = ?, error_message = ? WHERE id = ?",
-                        [$newStatus, $sendResult['error'] ?? 'Delivery failed.', $msgId]
-                    );
-                    $failedCount++;
-                    $details[] = ['id' => $msgId, 'status' => $newStatus, 'error' => $sendResult['error']];
-                }
-            } catch (\Throwable $e) {
-                $newStatus = ((int)$msg['attempts'] + 1 >= (int)$msg['max_attempts']) ? 'failed' : 'pending';
-                $this->db->execute(
-                    "UPDATE whatsapp_messages SET status = ?, error_message = ? WHERE id = ?",
-                    [$newStatus, $e->getMessage(), $msgId]
-                );
+            if ($res['success']) {
+                $sentCount++;
+                $details[] = ['id' => $msgId, 'status' => 'sent', 'provider' => $res['provider'] ?? $provider];
+            } else {
                 $failedCount++;
-                $details[] = ['id' => $msgId, 'status' => $newStatus, 'error' => $e->getMessage()];
+                $details[] = [
+                    'id' => $msgId,
+                    'status' => $res['status'] ?? 'failed',
+                    'provider' => $res['provider'] ?? $provider,
+                    'error' => $res['error'] ?? 'Delivery failed.',
+                ];
             }
 
             // Throttle between messages to protect gateway limits
@@ -388,7 +507,7 @@ final class WhatsAppService
         if (empty($token) || empty($phoneId)) {
             return [
                 'success' => false,
-                'error' => 'Meta Cloud API credentials missing (Token or Phone Number ID).',
+                'error' => 'Meta Cloud API credentials missing (Token or Phone Number ID). Please enter your Meta keys in Settings -> WhatsApp Gateway, or use "WhatsApp Web" to send manually.',
             ];
         }
 
@@ -523,5 +642,128 @@ final class WhatsAppService
             "UPDATE whatsapp_messages SET status = 'pending', attempts = 0, error_message = NULL WHERE id = ? AND tenant_id = ?",
             [$messageId, $tenantId]
         ) > 0;
+    }
+
+    /**
+     * Format & dispatch (or build direct link for) a SaaS Subscription GST Invoice via WhatsApp.
+     *
+     * @return array{status: string, whatsapp_url: string, error?: string}
+     */
+    public function sendSubscriptionInvoiceNotification(array $subInvoice, string $pdfUrl): array
+    {
+        $phone = self::sanitizePhone($subInvoice['buyer_phone'] ?? '');
+        $sellerName = (string)($subInvoice['seller_name'] ?? 'Shri Ram Open Source Technologies');
+        $sellerGstin = (string)($subInvoice['seller_gstin'] ?? '27AARPE1865G1ZJ');
+        $buyerName = (string)($subInvoice['buyer_business_name'] ?? 'Dairy Partner');
+        $invNo = (string)($subInvoice['invoice_number'] ?? '');
+        $planName = (string)($subInvoice['plan_name'] ?? 'Paid');
+        $cycle = ucfirst((string)($subInvoice['billing_cycle'] ?? 'monthly'));
+        $baseAmt = number_format((float)($subInvoice['base_amount'] ?? 0), 2);
+        $gstPct = number_format((float)($subInvoice['gst_percentage'] ?? 18), 0);
+        $gstAmt = number_format((float)($subInvoice['gst_amount'] ?? 0), 2);
+        $totalAmt = number_format((float)($subInvoice['total_amount'] ?? 0), 2);
+        $periodStart = (string)($subInvoice['period_start'] ?? '');
+        $periodEnd = (string)($subInvoice['period_end'] ?? '');
+        $limit = (int)($subInvoice['customer_limit'] ?? 100);
+
+        $lines = [
+            "🧾 *{$sellerName}* (GST Tax Invoice)",
+            "GSTIN: *{$sellerGstin}*",
+            "━━━━━━━━━━━━━━━━━━━━",
+            "Namaste *{$buyerName}*,",
+            "",
+            "Thank you! Your DoodhBee SaaS subscription invoice is ready:",
+            "",
+            "• Invoice No: *{$invNo}*",
+            "• Plan: *{$planName} ({$cycle})* — up to {$limit} customers",
+            "• Validity: *{$periodStart}* to *{$periodEnd}*",
+            "• Base Amount: ₹{$baseAmt}",
+            "• GST ({$gstPct}%): ₹{$gstAmt}",
+            "• *Total Paid: ₹{$totalAmt}*",
+            "",
+            "📄 *Download GST Tax Invoice PDF:*",
+            $pdfUrl,
+            "",
+            "All rights reserved to {$sellerName}.",
+        ];
+
+        $text = implode("\n", $lines);
+        $waUrl = $this->getDirectWhatsAppUrl($phone, $text);
+
+        if ($phone === '') {
+            return ['status' => 'failed', 'whatsapp_url' => $waUrl, 'error' => 'Tenant phone number missing.'];
+        }
+
+        if (defined('DOODHBEE_TEST_RUNNER') && DOODHBEE_TEST_RUNNER === true) {
+            return ['status' => 'queued_link', 'whatsapp_url' => $waUrl];
+        }
+
+        $token = (string)Env::get('WHATSAPP_CLOUD_API_TOKEN', '');
+        $phoneId = (string)Env::get('WHATSAPP_PHONE_NUMBER_ID', '');
+        if ($token !== '' && $phoneId !== '') {
+            $url = "https://graph.facebook.com/v21.0/{$phoneId}/messages";
+            $payload = [
+                'messaging_product' => 'whatsapp',
+                'recipient_type' => 'individual',
+                'to' => $phone,
+                'type' => 'document',
+                'document' => [
+                    'link' => $pdfUrl,
+                    'caption' => mb_strimwidth($text, 0, 1024, '...'),
+                    'filename' => "{$invNo}.pdf",
+                ],
+            ];
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => json_encode($payload),
+                CURLOPT_HTTPHEADER => [
+                    'Authorization: Bearer ' . $token,
+                    'Content-Type: application/json',
+                ],
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT => 15,
+            ]);
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlErr = curl_error($ch);
+            curl_close($ch);
+
+            if (!$curlErr && $httpCode >= 200 && $httpCode < 300) {
+                return ['status' => 'sent', 'whatsapp_url' => $waUrl];
+            }
+            return [
+                'status' => 'queued_link',
+                'whatsapp_url' => $waUrl,
+                'error' => $curlErr ?: "Meta API HTTP {$httpCode}: {$response}",
+            ];
+        }
+
+        $webhookUrl = (string)Env::get('WHATSAPP_WEBHOOK_URL', '');
+        if ($webhookUrl !== '') {
+            $ch = curl_init($webhookUrl);
+            curl_setopt_array($ch, [
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => json_encode([
+                    'phone' => $phone,
+                    'recipient_name' => $buyerName,
+                    'message' => $text,
+                    'pdf_url' => $pdfUrl,
+                    'subscription_invoice_id' => $subInvoice['id'] ?? null,
+                ]),
+                CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT => 10,
+            ]);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlErr = curl_error($ch);
+            curl_exec($ch);
+            curl_close($ch);
+            if (!$curlErr && $httpCode >= 200 && $httpCode < 300) {
+                return ['status' => 'sent', 'whatsapp_url' => $waUrl];
+            }
+        }
+
+        return ['status' => 'queued_link', 'whatsapp_url' => $waUrl];
     }
 }

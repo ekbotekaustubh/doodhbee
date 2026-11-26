@@ -49,6 +49,10 @@
             </div>
         </div>
         <?php endif; ?>
+
+        <footer class="mt-8 pt-4 border-t border-slate-800 text-center text-xs text-slate-400">
+            © <?= date('Y') ?> <strong class="text-slate-200">Shri Ram Open Source Technologies</strong>. All rights reserved.
+        </footer>
     </div>
 </body>
 </html>

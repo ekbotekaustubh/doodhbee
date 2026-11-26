@@ -12,8 +12,10 @@ DROP TABLE IF EXISTS customer_subscriptions;
 DROP TABLE IF EXISTS customer_leaves;
 DROP TABLE IF EXISTS customers;
 DROP TABLE IF EXISTS products;
+DROP TABLE IF EXISTS subscription_invoices;
 DROP TABLE IF EXISTS subscription_upgrade_requests;
 DROP TABLE IF EXISTS tenant_subscriptions;
+DROP TABLE IF EXISTS subscription_plans;
 DROP TABLE IF EXISTS tenant_additional_charges;
 DROP TABLE IF EXISTS tenant_settings;
 DROP TABLE IF EXISTS tenants;
@@ -87,26 +89,55 @@ CREATE TABLE tenant_additional_charges (
     INDEX idx_tenant_charges (tenant_id, is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 6. Tenant Subscriptions (Quota limits)
+-- 6. Subscription Plans (Managed by Super-Admin)
+CREATE TABLE subscription_plans (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    code VARCHAR(50) UNIQUE NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    description VARCHAR(255) NULL,
+    customer_limit INT NOT NULL DEFAULT 5,
+    monthly_price DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    yearly_price DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    is_free TINYINT(1) NOT NULL DEFAULT 0,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    sort_order INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_plans_active (is_active, sort_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 6a. Tenant Subscriptions (Quota limits)
 CREATE TABLE tenant_subscriptions (
     id INT AUTO_INCREMENT PRIMARY KEY,
     tenant_id INT NOT NULL,
+    plan_id INT NULL,
     purchased_blocks INT DEFAULT 0,
     max_customers_allowed INT DEFAULT 5,
     amount_paid DECIMAL(10, 2) DEFAULT 0.00,
+    billing_cycle ENUM('monthly', 'yearly') NULL DEFAULT NULL,
+    started_at DATE NULL,
     valid_until DATE NULL,
     payment_status ENUM('active', 'expired', 'free') DEFAULT 'free',
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+    FOREIGN KEY (plan_id) REFERENCES subscription_plans(id) ON DELETE SET NULL,
     UNIQUE KEY uq_tenant_subscription_tenant (tenant_id),
     INDEX idx_tenant_sub (tenant_id, payment_status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- 6a. Tenant Subscription Upgrade Requests (Approach 1: Offline Payment & UTR Verification)
+-- 6b. Tenant Subscription Upgrade Requests (Approach 1: Offline Payment & UTR Verification)
 CREATE TABLE subscription_upgrade_requests (
     id INT AUTO_INCREMENT PRIMARY KEY,
     tenant_id INT NOT NULL,
+    plan_id INT NULL,
+    plan_name VARCHAR(100) NULL,
+    customer_limit INT NOT NULL DEFAULT 100,
+    request_type VARCHAR(30) NOT NULL DEFAULT 'plan',
+    billing_cycle ENUM('monthly', 'yearly') NOT NULL DEFAULT 'monthly',
     blocks_requested INT NOT NULL DEFAULT 1,
     customer_slots INT NOT NULL DEFAULT 100,
+    base_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    gst_percentage DECIMAL(5, 2) NOT NULL DEFAULT 18.00,
+    gst_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
     amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
     payment_method VARCHAR(50) NOT NULL DEFAULT 'upi',
     utr_number VARCHAR(100) NOT NULL,
@@ -121,6 +152,46 @@ CREATE TABLE subscription_upgrade_requests (
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
     INDEX idx_sub_req_tenant (tenant_id, status),
     INDEX idx_sub_req_status (status, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 6c. SaaS Subscription GST Tax Invoices
+CREATE TABLE subscription_invoices (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    invoice_number VARCHAR(50) UNIQUE NOT NULL,
+    tenant_id INT NOT NULL,
+    upgrade_request_id INT NULL,
+    plan_id INT NULL,
+    plan_name VARCHAR(100) NOT NULL,
+    billing_cycle ENUM('monthly', 'yearly') NOT NULL DEFAULT 'monthly',
+    customer_limit INT NOT NULL DEFAULT 100,
+    action_type VARCHAR(30) NOT NULL DEFAULT 'subscribe',
+    period_start DATE NOT NULL,
+    period_end DATE NOT NULL,
+    base_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    gst_percentage DECIMAL(5, 2) NOT NULL DEFAULT 18.00,
+    cgst_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    sgst_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    gst_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    total_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    payment_method VARCHAR(50) NOT NULL DEFAULT 'upi',
+    utr_number VARCHAR(100) NULL,
+    seller_name VARCHAR(150) NOT NULL DEFAULT 'Shri Ram Open Source Technologies',
+    seller_gstin VARCHAR(30) NOT NULL DEFAULT '27AARPE1865G1ZJ',
+    sac_code VARCHAR(20) NOT NULL DEFAULT '998314',
+    buyer_business_name VARCHAR(150) NOT NULL,
+    buyer_owner_name VARCHAR(100) NOT NULL,
+    buyer_phone VARCHAR(20) NOT NULL,
+    buyer_email VARCHAR(100) NULL,
+    email_status ENUM('pending', 'sent', 'skipped', 'failed') NOT NULL DEFAULT 'pending',
+    email_error TEXT NULL,
+    emailed_at DATETIME NULL,
+    whatsapp_status ENUM('pending', 'sent', 'queued_link', 'failed') NOT NULL DEFAULT 'pending',
+    whatsapp_url TEXT NULL,
+    whatsapp_sent_at DATETIME NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+    INDEX idx_sub_inv_tenant (tenant_id, created_at),
+    INDEX idx_sub_inv_req (upgrade_request_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 6b. Tenant Product Catalog (Approach A: Normalized Multi-Product Architecture)

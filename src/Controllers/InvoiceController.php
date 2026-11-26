@@ -135,6 +135,7 @@ final class InvoiceController
             'tenant' => $tenant,
             'settings' => $settings,
             'payments' => $payments,
+            'whatsappMessage' => $data['whatsapp_message'] ?? null,
             'success' => Auth::flash('success'),
             'error' => Auth::flash('error'),
         ], 'main');
@@ -274,6 +275,29 @@ final class InvoiceController
         }
 
         Response::redirect($waUrl);
+    }
+
+    public function whatsappSendNow(Request $request, array $params): void
+    {
+        Auth::requireTenantAdmin();
+        $id = (int)($params['id'] ?? 0);
+        $provider = $request->post('provider');
+
+        $res = ApiClient::post("/api/invoices/{$id}/send-whatsapp", [
+            'provider' => $provider,
+        ]);
+
+        if ($res['success']) {
+            Auth::flash('success', $res['message'] ?? 'Invoice PDF sent to customer on WhatsApp!');
+        } else {
+            Auth::flash('error', $res['error'] ?? 'Failed to send WhatsApp message.');
+        }
+
+        if ($request->isAjax() || str_contains((string)($request->getHeader('accept') ?? $request->server('HTTP_ACCEPT', '')), 'application/json')) {
+            Response::json($res);
+        }
+
+        Response::redirect(url("/invoices/{$id}"));
     }
 
     public function whatsappBulkQueue(Request $request): void

@@ -218,6 +218,28 @@ final class SettingsController
         Response::redirect(url('/settings'));
     }
 
+    public function updateWhatsApp(Request $request): void
+    {
+        Auth::requireTenantAdmin();
+        $provider = trim((string)$request->post('whatsapp_provider', 'browser'));
+        $apiToken = trim((string)$request->post('whatsapp_api_token', ''));
+        $phoneId = trim((string)$request->post('whatsapp_phone_number_id', ''));
+
+        $res = ApiClient::post('/api/settings/whatsapp', [
+            'whatsapp_provider' => $provider,
+            'whatsapp_api_token' => $apiToken,
+            'whatsapp_phone_number_id' => $phoneId,
+        ]);
+
+        if ($res['success']) {
+            Auth::flash('success', 'WhatsApp gateway settings saved successfully.');
+        } else {
+            Auth::flash('error', $res['error'] ?? 'Failed to update WhatsApp settings.');
+        }
+
+        Response::redirect(url('/settings'));
+    }
+
     public function addCharge(Request $request): void
     {
         Auth::requireTenantAdmin();
@@ -400,17 +422,21 @@ final class SettingsController
         // Fetch subscription and quota via REST API
         $subRes = ApiClient::get('/api/subscription');
         $quota = $subRes['data']['quota'] ?? [];
+        $plans = $subRes['data']['plans'] ?? [];
         $pricing = $subRes['data']['pricing'] ?? [];
         $bankDetails = $subRes['data']['bank_details'] ?? [];
         $pendingRequest = $subRes['data']['pending_request'] ?? null;
         $upgradeRequests = $subRes['data']['upgrade_requests'] ?? [];
+        $subInvoices = $subRes['data']['invoices'] ?? [];
 
         View::render('settings/subscription', [
             'quota' => $quota,
+            'plans' => $plans,
             'pricing' => $pricing,
             'bankDetails' => $bankDetails,
             'pendingRequest' => $pendingRequest,
             'upgradeRequests' => $upgradeRequests,
+            'subInvoices' => $subInvoices,
             'success' => Auth::flash('success'),
             'error' => Auth::flash('error'),
         ], 'main');
@@ -419,17 +445,27 @@ final class SettingsController
     public function requestUpgrade(Request $request): void
     {
         Auth::requireTenantAdmin();
+        $planId = (int)$request->post('plan_id', 0);
         $blocks = max(1, (int)$request->post('blocks', 1));
         $utrNumber = trim((string)$request->post('utr_number', ''));
         $paymentMethod = trim((string)$request->post('payment_method', 'upi'));
         $notes = trim((string)$request->post('notes', ''));
+        $billingCycle = trim((string)$request->post('billing_cycle', 'monthly')) ?: 'monthly';
+        $requestType = trim((string)$request->post('request_type', 'add_blocks')) ?: 'add_blocks';
 
-        $res = ApiClient::post('/api/subscription/request-upgrade', [
+        $payload = [
             'blocks' => $blocks,
             'utr_number' => $utrNumber,
             'payment_method' => $paymentMethod,
             'notes' => $notes,
-        ]);
+            'billing_cycle' => $billingCycle,
+            'request_type' => $requestType,
+        ];
+        if ($planId > 0) {
+            $payload['plan_id'] = $planId;
+        }
+
+        $res = ApiClient::post('/api/subscription/request-upgrade', $payload);
 
         if ($res['success']) {
             Auth::flash('success', $res['message'] ?? 'Payment upgrade request submitted successfully. SuperAdmin will verify and activate your quota.');
@@ -443,27 +479,100 @@ final class SettingsController
     public function upgradeQuota(Request $request): void
     {
         Auth::requireTenantAdmin();
+        $planId = (int)$request->post('plan_id', 0);
         $blocks = max(1, (int)$request->post('blocks', 1));
         $utrNumber = trim((string)$request->post('utr_number', ''));
+        $billingCycle = trim((string)$request->post('billing_cycle', 'monthly')) ?: 'monthly';
+        $requestType = trim((string)$request->post('request_type', 'add_blocks')) ?: 'add_blocks';
 
         if (!empty($utrNumber)) {
             $this->requestUpgrade($request);
             return;
         }
 
-        // Upgrade quota via REST API (fallback / demo mode)
-        $res = ApiClient::post('/api/subscription/upgrade', [
+        $payload = [
             'blocks' => $blocks,
-        ]);
+            'billing_cycle' => $billingCycle,
+            'request_type' => $requestType,
+        ];
+        if ($planId > 0) {
+            $payload['plan_id'] = $planId;
+        }
+
+        $res = ApiClient::post('/api/subscription/upgrade', $payload);
 
         if ($res['success']) {
             $quota = $res['data']['quota'] ?? [];
             $maxAllowed = $quota['max_allowed'] ?? ($blocks * 100);
-            Auth::flash('success', "Upgraded successfully! Added {$blocks} block(s). You can now manage up to {$maxAllowed} customers.");
+            Auth::flash('success', $res['message'] ?? "Upgraded successfully! You can now manage up to {$maxAllowed} customers.");
         } else {
             Auth::flash('error', $res['error'] ?? 'Subscription upgrade failed.');
         }
 
+        Response::redirect(url('/subscription'));
+    }
+
+    public function subscriptionInvoiceView(Request $request, array $params): void
+    {
+        Auth::requireTenantAdmin();
+        $tenantId = (int)Auth::tenantId();
+        $id = (int)($params['id'] ?? 0);
+
+        $invService = new \App\Services\SubscriptionInvoiceService();
+        $invoice = $invService->getInvoiceById($id, $tenantId);
+        if (!$invoice) {
+            Auth::flash('error', 'Subscription tax invoice not found.');
+            Response::redirect(url('/subscription'));
+            return;
+        }
+
+        echo $invService->renderInvoiceHtml($invoice, false);
+    }
+
+    public function subscriptionInvoicePdf(Request $request, array $params): void
+    {
+        Auth::requireTenantAdmin();
+        $tenantId = (int)Auth::tenantId();
+        $id = (int)($params['id'] ?? 0);
+
+        $invService = new \App\Services\SubscriptionInvoiceService();
+        $invoice = $invService->getInvoiceById($id, $tenantId);
+        if (!$invoice) {
+            Response::redirect(url('/subscription'));
+            return;
+        }
+
+        $html = $invService->renderInvoiceHtml($invoice, true);
+        \App\Services\PdfExportService::streamPdf($html, "{$invoice['invoice_number']}.pdf", 'A4', 'portrait');
+    }
+
+    public function publicSubscriptionInvoicePdf(Request $request, array $params): void
+    {
+        $id = (int)($params['id'] ?? 0);
+        $token = trim((string)$request->get('token', ''));
+
+        $invService = new \App\Services\SubscriptionInvoiceService();
+        $invoice = $invService->getInvoiceById($id);
+        if (!$invoice || !\App\Services\SubscriptionInvoiceService::verifyToken($id, (int)$invoice['tenant_id'], $token)) {
+            http_response_code(403);
+            echo 'Invalid or expired invoice download link.';
+            return;
+        }
+
+        $html = $invService->renderInvoiceHtml($invoice, true);
+        \App\Services\PdfExportService::streamPdf($html, "{$invoice['invoice_number']}.pdf", 'A4', 'portrait');
+    }
+
+    public function resendSubscriptionInvoice(Request $request, array $params): void
+    {
+        Auth::requireTenantAdmin();
+        $id = (int)($params['id'] ?? 0);
+        $res = ApiClient::post("/api/subscription/invoices/{$id}/resend");
+        if ($res['success']) {
+            Auth::flash('success', $res['message'] ?? 'Tax invoice notifications dispatched.');
+        } else {
+            Auth::flash('error', $res['error'] ?? 'Failed to dispatch invoice notifications.');
+        }
         Response::redirect(url('/subscription'));
     }
 }

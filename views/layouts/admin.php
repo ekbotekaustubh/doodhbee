@@ -63,5 +63,9 @@
     <main class="flex-1 max-w-7xl w-full mx-auto px-4 py-8">
         <?= $content ?>
     </main>
+
+    <footer class="border-t border-slate-800 bg-slate-900 py-4 px-4 text-center text-xs text-slate-400">
+        © <?= date('Y') ?> <strong class="text-slate-200">Shri Ram Open Source Technologies</strong>. All rights reserved.
+    </footer>
 </body>
 </html>

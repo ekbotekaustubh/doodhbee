@@ -196,6 +196,10 @@
         <?php endif; ?>
     </div>
 
+    <footer class="border-t border-slate-200 bg-white py-4 px-4 text-center text-xs text-slate-500">
+        © <?= date('Y') ?> <strong class="text-slate-700">Shri Ram Open Source Technologies</strong>. All rights reserved.
+    </footer>
+
     <!-- Quick Demo Switcher Bar (Bottom Footer for easy review - Only in Demo/Dev Mode) -->
     <?php if (isDemoMode()): ?>
     <div class="border-t border-slate-200 bg-slate-100 py-2 px-4 text-xs text-slate-500 text-center flex flex-wrap items-center justify-center gap-3">

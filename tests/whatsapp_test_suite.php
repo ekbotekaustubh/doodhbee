@@ -11,6 +11,7 @@ echo "   DOODHBEE WHATSAPP INVOICE DISPATCH TEST SUITE        \n";
 echo "========================================================\n\n";
 
 $db = Database::getInstance();
+$db->execute("UPDATE tenant_settings SET whatsapp_provider = 'browser', whatsapp_api_token = NULL, whatsapp_phone_number_id = NULL WHERE tenant_id = 1");
 $service = new WhatsAppService($db);
 $passed = 0;
 $failed = 0;
@@ -251,7 +252,144 @@ runTest("Public Bill REST API (GET /api/public/invoices/{id})", function() use (
     }
 }, $passed, $failed);
 
+// TEST 9: Immediate Single Invoice Dispatch Reusing Cron Engine
+runTest("Immediate Single Invoice Dispatch (sendSingleInvoiceNow)", function() use ($db, $service) {
+    $inv = $db->fetchOne("SELECT id FROM invoices WHERE tenant_id = 1 ORDER BY id ASC LIMIT 1");
+    if (!$inv) {
+        throw new \Exception("No invoice found for tenant 1");
+    }
+    $invId = (int)$inv['id'];
+
+    // Clean prior messages for this invoice
+    $db->execute("DELETE FROM whatsapp_messages WHERE tenant_id = 1 AND invoice_id = ?", [$invId]);
+
+    // Dispatch directly using single send method
+    $result = $service->sendSingleInvoiceNow(1, $invId);
+
+    if (!$result['success']) {
+        throw new \Exception("sendSingleInvoiceNow failed: " . ($result['error'] ?? 'Unknown error'));
+    }
+
+    // Verify row status in database
+    $status = $service->getInvoiceMessageStatus(1, $invId);
+    if (!$status) {
+        throw new \Exception("getInvoiceMessageStatus returned null");
+    }
+    if ($status['status'] !== 'sent') {
+        throw new \Exception("Expected status 'sent', got: " . $status['status']);
+    }
+    if (empty($status['provider_message_id'])) {
+        throw new \Exception("Missing provider_message_id in single send record");
+    }
+}, $passed, $failed);
+
+// TEST 10: Single Invoice Dispatch with Meta Cloud API (Missing Credentials Guard)
+runTest("Meta Cloud API Provider Credential Guard", function() use ($db, $service) {
+    $inv = $db->fetchOne("SELECT id FROM invoices WHERE tenant_id = 1 ORDER BY id ASC LIMIT 1");
+    $invId = (int)$inv['id'];
+
+    // Clear tenant settings WhatsApp tokens to test validation
+    $db->execute("UPDATE tenant_settings SET whatsapp_api_token = NULL, whatsapp_phone_number_id = NULL WHERE tenant_id = 1");
+
+    // Clean prior message
+    $db->execute("DELETE FROM whatsapp_messages WHERE tenant_id = 1 AND invoice_id = ?", [$invId]);
+
+    // Attempt to force meta_cloud provider dispatch
+    $result = $service->sendSingleInvoiceNow(1, $invId, 'meta_cloud');
+
+    if ($result['success'] !== false) {
+        throw new \Exception("Expected meta_cloud dispatch to fail with missing credentials, but succeeded");
+    }
+    if (!str_contains($result['error'] ?? '', 'Meta Cloud API credentials missing')) {
+        throw new \Exception("Unexpected error message: " . ($result['error'] ?? 'none'));
+    }
+
+    // Verify database row logged error and status is pending (for retry) or failed
+    $status = $service->getInvoiceMessageStatus(1, $invId);
+    if (!in_array($status['status'], ['pending', 'failed'], true)) {
+        throw new \Exception("Expected message status 'pending' or 'failed', got: " . $status['status']);
+    }
+    if (!str_contains($status['error_message'] ?? '', 'credentials missing')) {
+        throw new \Exception("Error message not recorded in database: " . ($status['error_message'] ?? 'none'));
+    }
+}, $passed, $failed);
+
+// TEST 11: Single Invoice Send REST API (POST /api/invoices/{id}/send-whatsapp)
+runTest("Single Invoice Send REST API (POST /api/invoices/{id}/send-whatsapp)", function() use ($db) {
+    $inv = $db->fetchOne("SELECT id FROM invoices WHERE tenant_id = 1 ORDER BY id ASC LIMIT 1");
+    $invId = (int)$inv['id'];
+
+    // Create a valid Bearer token for tenant 1
+    $plainToken = 'test_token_' . bin2hex(random_bytes(16));
+    $tokenHash = hash('sha256', $plainToken);
+    $db->execute(
+        "INSERT INTO api_tokens (tenant_id, token_hash, token_type, name, expires_at)
+         VALUES (1, ?, 'tenant', 'PHPUnit Runner', DATE_ADD(NOW(), INTERVAL 1 DAY))",
+        [$tokenHash]
+    );
+
+    // Also populate session context
+    if (session_status() === PHP_SESSION_NONE) {
+        @session_start();
+    }
+    $_SESSION['tenant'] = [
+        'id' => 1,
+        'role' => 'admin',
+        'business_name' => 'Krishna Pure Milk Dairy',
+        'status' => 'active',
+    ];
+
+    // Dispatch via API with default provider using Bearer token
+    $res = \App\Core\ApiClient::post("/api/invoices/{$invId}/send-whatsapp", ['provider' => 'browser'], $plainToken);
+
+    if (!$res['success']) {
+        throw new \Exception("API single send failed: " . json_encode($res));
+    }
+    if (empty($res['data']['message_id'])) {
+        throw new \Exception("API response missing message_id");
+    }
+}, $passed, $failed);
+
+// TEST 12: WhatsApp Gateway Settings API (POST /api/settings/whatsapp)
+runTest("WhatsApp Gateway Settings API (POST /api/settings/whatsapp)", function() use ($db) {
+    $plainToken = 'test_token_settings_' . bin2hex(random_bytes(16));
+    $tokenHash = hash('sha256', $plainToken);
+    $db->execute(
+        "INSERT INTO api_tokens (tenant_id, token_hash, token_type, name, expires_at)
+         VALUES (1, ?, 'tenant', 'PHPUnit Runner', DATE_ADD(NOW(), INTERVAL 1 DAY))",
+        [$tokenHash]
+    );
+
+    if (session_status() === PHP_SESSION_NONE) {
+        @session_start();
+    }
+    $_SESSION['tenant'] = [
+        'id' => 1,
+        'role' => 'admin',
+        'business_name' => 'Krishna Pure Milk Dairy',
+        'status' => 'active',
+    ];
+
+    $payload = [
+        'whatsapp_provider' => 'meta_cloud',
+        'whatsapp_phone_number_id' => '109876543210987',
+        'whatsapp_api_token' => 'EAAG_TEST_TOKEN_12345',
+    ];
+
+    $res = \App\Core\ApiClient::post("/api/settings/whatsapp", $payload, $plainToken);
+    if (!$res['success']) {
+        throw new \Exception("WhatsApp settings update failed: " . json_encode($res));
+    }
+
+    // Verify in database
+    $row = $db->fetchOne("SELECT whatsapp_provider, whatsapp_phone_number_id FROM tenant_settings WHERE tenant_id = 1");
+    if ($row['whatsapp_provider'] !== 'meta_cloud' || $row['whatsapp_phone_number_id'] !== '109876543210987') {
+        throw new \Exception("Database row not updated properly: " . json_encode($row));
+    }
+}, $passed, $failed);
+
 // Clean up test messages
+$db->execute("UPDATE tenant_settings SET whatsapp_provider = 'browser', whatsapp_api_token = NULL, whatsapp_phone_number_id = NULL WHERE tenant_id = 1");
 if (!empty($testInvoiceIds)) {
     $placeholders = implode(',', array_fill(0, count($testInvoiceIds), '?'));
     $db->execute("DELETE FROM whatsapp_messages WHERE tenant_id = 1 AND invoice_id IN ({$placeholders})", $testInvoiceIds);
