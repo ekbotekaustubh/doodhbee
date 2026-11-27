@@ -414,7 +414,7 @@ final class WhatsAppService
             $params[] = $tenantId;
         }
 
-        $params[] = $limit;
+        $limit = max(1, min(500, $limit));
 
         $messages = $this->db->fetchAll(
             "SELECT wm.*, ts.whatsapp_provider, ts.whatsapp_api_token, ts.whatsapp_phone_number_id
@@ -422,7 +422,7 @@ final class WhatsAppService
              LEFT JOIN tenant_settings ts ON ts.tenant_id = wm.tenant_id
              WHERE {$where}
              ORDER BY wm.id ASC
-             LIMIT ?",
+             LIMIT {$limit}",
             $params
         );
 

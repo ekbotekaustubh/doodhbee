@@ -41,8 +41,10 @@ final class Bootstrap
         }
 
         // 4. Default Timezone
-        $tz = (string)Env::get('APP_TIMEZONE', 'Asia/Kolkata');
-        date_default_timezone_set($tz);
+        $tz = trim((string)Env::get('APP_TIMEZONE', 'Asia/Kolkata'));
+        if ($tz === '' || !@date_default_timezone_set($tz)) {
+            date_default_timezone_set('Asia/Kolkata');
+        }
 
         // 5. Secure Session Defaults
         if (session_status() === PHP_SESSION_NONE) {

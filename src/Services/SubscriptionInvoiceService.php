@@ -194,20 +194,78 @@ final class SubscriptionInvoiceService
         return $this->db->fetchOne($sql, $params);
     }
 
+    private function ensureSchema(): void
+    {
+        $this->db->getPdo()->exec(
+            "CREATE TABLE IF NOT EXISTS subscription_invoices (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                invoice_number VARCHAR(50) UNIQUE NOT NULL,
+                tenant_id INT NOT NULL,
+                upgrade_request_id INT NULL,
+                plan_id INT NULL,
+                plan_name VARCHAR(100) NOT NULL,
+                billing_cycle ENUM('monthly', 'yearly') NOT NULL DEFAULT 'monthly',
+                customer_limit INT NOT NULL DEFAULT 100,
+                action_type VARCHAR(30) NOT NULL DEFAULT 'subscribe',
+                period_start DATE NOT NULL,
+                period_end DATE NOT NULL,
+                base_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+                gst_percentage DECIMAL(5, 2) NOT NULL DEFAULT 18.00,
+                cgst_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+                sgst_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+                gst_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+                total_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+                payment_method VARCHAR(50) NOT NULL DEFAULT 'upi',
+                utr_number VARCHAR(100) NULL,
+                seller_name VARCHAR(150) NOT NULL DEFAULT 'Shri Ram Open Source Technologies',
+                seller_gstin VARCHAR(30) NOT NULL DEFAULT '27AARPE1865G1ZJ',
+                sac_code VARCHAR(20) NOT NULL DEFAULT '998314',
+                buyer_business_name VARCHAR(150) NOT NULL,
+                buyer_owner_name VARCHAR(100) NOT NULL,
+                buyer_phone VARCHAR(20) NOT NULL,
+                buyer_email VARCHAR(100) NULL,
+                email_status ENUM('pending', 'sent', 'skipped', 'failed') NOT NULL DEFAULT 'pending',
+                email_error TEXT NULL,
+                emailed_at DATETIME NULL,
+                whatsapp_status ENUM('pending', 'sent', 'queued_link', 'failed') NOT NULL DEFAULT 'pending',
+                whatsapp_url TEXT NULL,
+                whatsapp_sent_at DATETIME NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+                INDEX idx_sub_inv_tenant (tenant_id, created_at),
+                INDEX idx_sub_inv_req (upgrade_request_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+    }
+
     public function getTenantInvoices(int $tenantId, int $limit = 20): array
     {
-        return $this->db->fetchAll(
-            "SELECT * FROM subscription_invoices WHERE tenant_id = ? ORDER BY id DESC LIMIT ?",
-            [$tenantId, $limit]
-        );
+        $limit = max(1, min(500, $limit));
+        $sql = "SELECT * FROM subscription_invoices WHERE tenant_id = ? ORDER BY id DESC LIMIT {$limit}";
+        try {
+            return $this->db->fetchAll($sql, [$tenantId]);
+        } catch (\PDOException $e) {
+            if ($e->getCode() === '42S02') {
+                $this->ensureSchema();
+                return $this->db->fetchAll($sql, [$tenantId]);
+            }
+            throw $e;
+        }
     }
 
     public function getAllInvoices(int $limit = 50): array
     {
-        return $this->db->fetchAll(
-            "SELECT * FROM subscription_invoices ORDER BY id DESC LIMIT ?",
-            [$limit]
-        );
+        $limit = max(1, min(500, $limit));
+        $sql = "SELECT * FROM subscription_invoices ORDER BY id DESC LIMIT {$limit}";
+        try {
+            return $this->db->fetchAll($sql);
+        } catch (\PDOException $e) {
+            if ($e->getCode() === '42S02') {
+                $this->ensureSchema();
+                return $this->db->fetchAll($sql);
+            }
+            throw $e;
+        }
     }
 
     public function renderInvoiceHtml(array $invoice, bool $isPdf = false): string

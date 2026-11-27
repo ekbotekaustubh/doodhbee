@@ -25,6 +25,11 @@
         $currentPlanId = (int)($quota['plan_id'] ?? 0);
         $currentPlanName = (string)($quota['plan_name'] ?? 'Free');
         $currentCycle = $quota['billing_cycle'] ?? null;
+        $activeCustomers = (int)($quota['active_customers'] ?? 0);
+        $maxAllowed = (int)($quota['max_allowed'] ?? 5);
+        $freeLimit = (int)($quota['free_limit'] ?? 5);
+        $usagePercent = (float)($quota['usage_percent'] ?? 0);
+        $remainingSlots = (int)($quota['remaining_slots'] ?? 0);
         $paidPlans = array_values(array_filter($plans ?? [], fn($p) => empty($p['is_free'])));
         $defaultSelectedPlanId = 0;
         foreach ($paidPlans as $pp) {
@@ -50,14 +55,14 @@
     <div class="p-4 rounded-2xl bg-rose-50 border-2 border-rose-300 text-rose-900 text-xs">
         <div class="font-black uppercase tracking-wider text-rose-800">⚠️ Paid Subscription Expired</div>
         <p class="mt-0.5">
-            Your <strong><?= e($currentPlanName) ?></strong> plan expired on <strong><?= formatDate($quota['valid_until'], 'd M Y') ?></strong>. Capacity has soft-downgraded to the Free limit (<?= (int)$quota['free_limit'] ?> active customers). Existing customers and daily deliveries continue working; choose any plan below to reactivate.
+            Your <strong><?= e($currentPlanName) ?></strong> plan expired on <strong><?= formatDate($quota['valid_until'] ?? null, 'd M Y') ?></strong>. Capacity has soft-downgraded to the Free limit (<?= $freeLimit ?> active customers). Existing customers and daily deliveries continue working; choose any plan below to reactivate.
         </p>
     </div>
     <?php elseif ($isInGrace): ?>
     <div class="p-4 rounded-2xl bg-amber-50 border-2 border-amber-300 text-amber-900 text-xs">
         <div class="font-black uppercase tracking-wider text-amber-800">⏳ Grace Period Active (<?= (int)($quota['grace_days_remaining'] ?? 0) ?> day(s) left)</div>
         <p class="mt-0.5">
-            Your <strong><?= e($currentPlanName) ?></strong> plan ended on <strong><?= formatDate($quota['valid_until'], 'd M Y') ?></strong>. Renew or switch plan before <strong><?= formatDate($quota['grace_ends_on'], 'd M Y') ?></strong> to keep your <?= (int)$quota['max_allowed'] ?>-customer limit.
+            Your <strong><?= e($currentPlanName) ?></strong> plan ended on <strong><?= formatDate($quota['valid_until'] ?? null, 'd M Y') ?></strong>. Renew or switch plan before <strong><?= formatDate($quota['grace_ends_on'] ?? null, 'd M Y') ?></strong> to keep your <?= $maxAllowed ?>-customer limit.
         </p>
     </div>
     <?php endif; ?>
@@ -83,7 +88,7 @@
             <div class="text-left sm:text-right">
                 <div class="text-xs text-slate-400 font-bold uppercase">Customer Capacity</div>
                 <div class="text-3xl font-black text-slate-900">
-                    <?= $quota['active_customers'] ?> <span class="text-sm font-semibold text-slate-500">/ <?= $quota['max_allowed'] ?> Slots</span>
+                    <?= $activeCustomers ?> <span class="text-sm font-semibold text-slate-500">/ <?= $maxAllowed ?> Slots</span>
                 </div>
             </div>
         </div>
@@ -91,13 +96,13 @@
         <!-- Progress Bar -->
         <div class="py-6 border-b border-slate-100">
             <div class="flex justify-between text-xs font-bold text-slate-700 mb-2">
-                <span>Capacity Utilized: <?= $quota['usage_percent'] ?>%</span>
-                <span class="<?= $quota['remaining_slots'] <= 1 ? 'text-rose-600' : 'text-emerald-600' ?>">
-                    <?= $quota['remaining_slots'] ?> Slots Remaining
+                <span>Capacity Utilized: <?= $usagePercent ?>%</span>
+                <span class="<?= $remainingSlots <= 1 ? 'text-rose-600' : 'text-emerald-600' ?>">
+                    <?= $remainingSlots ?> Slots Remaining
                 </span>
             </div>
             <div class="w-full bg-slate-100 rounded-full h-3.5 overflow-hidden p-0.5 border border-slate-200">
-                <div class="h-full rounded-full transition-all duration-500 <?= $quota['usage_percent'] >= 90 ? 'bg-rose-500' : 'bg-emerald-500' ?>" style="width: <?= $quota['usage_percent'] ?>%"></div>
+                <div class="h-full rounded-full transition-all duration-500 <?= $usagePercent >= 90 ? 'bg-rose-500' : 'bg-emerald-500' ?>" style="width: <?= $usagePercent ?>%"></div>
             </div>
         </div>
 
@@ -106,12 +111,12 @@
             <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
                 <div class="text-[10px] uppercase font-black text-slate-400">Active Plan</div>
                 <div class="text-xl font-black text-slate-900 mt-1"><?= e($currentPlanName) ?></div>
-                <p class="text-slate-500 mt-0.5">Free tier base: <?= (int)$quota['free_limit'] ?> customers.</p>
+                <p class="text-slate-500 mt-0.5">Free tier base: <?= $freeLimit ?> customers.</p>
             </div>
             <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
                 <div class="text-[10px] uppercase font-black text-slate-400">Allowed Customers</div>
-                <div class="text-xl font-black text-slate-900 mt-1"><?= (int)$quota['max_allowed'] ?> Max</div>
-                <p class="text-slate-500 mt-0.5"><?= (int)$quota['active_customers'] ?> active currently.</p>
+                <div class="text-xl font-black text-slate-900 mt-1"><?= $maxAllowed ?> Max</div>
+                <p class="text-slate-500 mt-0.5"><?= $activeCustomers ?> active currently.</p>
             </div>
             <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
                 <div class="text-[10px] uppercase font-black text-slate-400">Renewal Rule</div>
@@ -157,6 +162,11 @@
                         Select Subscription Pack
                     </label>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <?php if (empty($paidPlans)): ?>
+                            <div class="col-span-full p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 font-semibold">
+                                No active subscription packages are available right now. Please refresh or contact support.
+                            </div>
+                        <?php else: ?>
                         <?php foreach ($paidPlans as $pp): ?>
                             <?php
                                 $pid = (int)$pp['id'];
@@ -186,6 +196,7 @@
                                 <div class="text-[10px] text-rose-600 font-semibold mt-1.5 hidden plan-card-reason" data-plan-id="<?= $pid ?>"></div>
                             </label>
                         <?php endforeach; ?>
+                        <?php endif; ?>
                     </div>
                 </div>
 

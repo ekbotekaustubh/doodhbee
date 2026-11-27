@@ -22,9 +22,51 @@ final class QuotaService
         return $this->lastGeneratedInvoice;
     }
 
+    private function ensureSubscriptionSchema(): void
+    {
+        $pdo = $this->db->getPdo();
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS subscription_plans (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                code VARCHAR(50) UNIQUE NOT NULL,
+                name VARCHAR(100) NOT NULL,
+                description VARCHAR(255) NULL,
+                customer_limit INT NOT NULL DEFAULT 5,
+                monthly_price DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+                yearly_price DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+                is_free TINYINT(1) NOT NULL DEFAULT 0,
+                is_active TINYINT(1) NOT NULL DEFAULT 1,
+                sort_order INT NOT NULL DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_plans_active (is_active, sort_order)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+
+        $subCols = array_map(fn($c) => $c['Field'], $this->db->fetchAll("SHOW COLUMNS FROM tenant_subscriptions"));
+        if (!in_array('plan_id', $subCols, true)) {
+            $pdo->exec("ALTER TABLE tenant_subscriptions ADD COLUMN plan_id INT NULL AFTER tenant_id");
+        }
+        if (!in_array('billing_cycle', $subCols, true)) {
+            $pdo->exec("ALTER TABLE tenant_subscriptions ADD COLUMN billing_cycle ENUM('monthly', 'yearly') NULL DEFAULT NULL AFTER amount_paid");
+        }
+        if (!in_array('started_at', $subCols, true)) {
+            $pdo->exec("ALTER TABLE tenant_subscriptions ADD COLUMN started_at DATE NULL AFTER billing_cycle");
+        }
+    }
+
     public function ensureDefaultPlans(): void
     {
-        $count = (int)$this->db->fetchValue("SELECT COUNT(*) FROM subscription_plans");
+        try {
+            $count = (int)$this->db->fetchValue("SELECT COUNT(*) FROM subscription_plans");
+        } catch (\PDOException $e) {
+            if ($e->getCode() === '42S02') {
+                $this->ensureSubscriptionSchema();
+                $count = (int)$this->db->fetchValue("SELECT COUNT(*) FROM subscription_plans");
+            } else {
+                throw $e;
+            }
+        }
         if ($count > 0) {
             return;
         }
@@ -296,15 +338,22 @@ final class QuotaService
         $yearlyPrice = (float)($sys['paid_tier_yearly_price'] ?? ($monthlyPrice * 10));
         $graceDays = max(0, (int)($sys['subscription_grace_days'] ?? 7));
 
-        $sub = $this->db->fetchOne(
-            "SELECT ts.*, sp.code as sp_code, sp.name as sp_name, sp.customer_limit as sp_customer_limit,
+        $subSql = "SELECT ts.*, sp.code as sp_code, sp.name as sp_name, sp.customer_limit as sp_customer_limit,
                     sp.monthly_price as sp_monthly_price, sp.yearly_price as sp_yearly_price, sp.is_free as sp_is_free
              FROM tenant_subscriptions ts
              LEFT JOIN subscription_plans sp ON sp.id = ts.plan_id
              WHERE ts.tenant_id = ?
-             ORDER BY ts.id DESC LIMIT 1",
-            [$tenantId]
-        );
+             ORDER BY ts.id DESC LIMIT 1";
+        try {
+            $sub = $this->db->fetchOne($subSql, [$tenantId]);
+        } catch (\PDOException $e) {
+            if ($e->getCode() === '42S22' || $e->getCode() === '42S02') {
+                $this->ensureSubscriptionSchema();
+                $sub = $this->db->fetchOne($subSql, [$tenantId]);
+            } else {
+                throw $e;
+            }
+        }
 
         $purchasedBlocks = $sub ? (int)$sub['purchased_blocks'] : 0;
         $paymentStatus = $sub ? (string)$sub['payment_status'] : 'free';

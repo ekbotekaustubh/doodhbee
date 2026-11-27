@@ -43,7 +43,12 @@ final class SubscriptionApiController extends ApiBaseController
         }
         unset($plan);
 
-        $invoices = $this->invoiceService->getTenantInvoices($tenantId);
+        $invoices = [];
+        try {
+            $invoices = $this->invoiceService->getTenantInvoices($tenantId);
+        } catch (\Throwable $e) {
+            error_log('Subscription invoices fetch failed: ' . $e->getMessage());
+        }
 
         $this->jsonSuccess([
             'quota' => $quota,
@@ -150,7 +155,12 @@ final class SubscriptionApiController extends ApiBaseController
     public function getInvoices(Request $request): void
     {
         $tenantId = $this->tenantId();
-        $invoices = $this->invoiceService->getTenantInvoices($tenantId);
+        $invoices = [];
+        try {
+            $invoices = $this->invoiceService->getTenantInvoices($tenantId);
+        } catch (\Throwable $e) {
+            error_log('Subscription invoices fetch failed: ' . $e->getMessage());
+        }
         foreach ($invoices as &$inv) {
             $inv['public_pdf_url'] = SubscriptionInvoiceService::getPublicPdfUrl((int)$inv['id'], $tenantId);
         }

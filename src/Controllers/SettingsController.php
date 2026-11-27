@@ -427,6 +427,11 @@ final class SettingsController
         $subInvoices = $subRes['data']['invoices'] ?? [];
         $razorpay = $subRes['data']['razorpay'] ?? [];
 
+        $error = Auth::flash('error');
+        if (empty($error) && empty($subRes['success'])) {
+            $error = $subRes['error'] ?? 'Unable to load subscription packages right now. Please try again.';
+        }
+
         View::render('settings/subscription', [
             'quota' => $quota,
             'plans' => $plans,
@@ -434,7 +439,7 @@ final class SettingsController
             'subInvoices' => $subInvoices,
             'razorpay' => $razorpay,
             'success' => Auth::flash('success'),
-            'error' => Auth::flash('error'),
+            'error' => $error,
         ], 'main');
     }
 
