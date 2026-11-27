@@ -428,6 +428,7 @@ final class SettingsController
         $pendingRequest = $subRes['data']['pending_request'] ?? null;
         $upgradeRequests = $subRes['data']['upgrade_requests'] ?? [];
         $subInvoices = $subRes['data']['invoices'] ?? [];
+        $razorpay = $subRes['data']['razorpay'] ?? [];
 
         View::render('settings/subscription', [
             'quota' => $quota,
@@ -437,6 +438,7 @@ final class SettingsController
             'pendingRequest' => $pendingRequest,
             'upgradeRequests' => $upgradeRequests,
             'subInvoices' => $subInvoices,
+            'razorpay' => $razorpay,
             'success' => Auth::flash('success'),
             'error' => Auth::flash('error'),
         ], 'main');
@@ -574,5 +576,35 @@ final class SettingsController
             Auth::flash('error', $res['error'] ?? 'Failed to dispatch invoice notifications.');
         }
         Response::redirect(url('/subscription'));
+    }
+
+    public function createRazorpayOrder(Request $request): void
+    {
+        Auth::requireTenantAdmin();
+        $planId = (int)$request->input('plan_id', 0);
+        $billingCycle = trim((string)$request->input('billing_cycle', 'monthly')) ?: 'monthly';
+
+        $res = ApiClient::post('/api/subscription/razorpay/order', [
+            'plan_id' => $planId,
+            'billing_cycle' => $billingCycle,
+        ]);
+
+        Response::json($res, !empty($res['success']) ? 201 : 422);
+    }
+
+    public function verifyRazorpayPayment(Request $request): void
+    {
+        Auth::requireTenantAdmin();
+        $res = ApiClient::post('/api/subscription/razorpay/verify', [
+            'razorpay_order_id' => trim((string)$request->input('razorpay_order_id', '')),
+            'razorpay_payment_id' => trim((string)$request->input('razorpay_payment_id', '')),
+            'razorpay_signature' => trim((string)$request->input('razorpay_signature', '')),
+        ]);
+
+        if (!empty($res['success'])) {
+            Auth::flash('success', $res['message'] ?? 'Razorpay payment verified and plan activated!');
+        }
+
+        Response::json($res, !empty($res['success']) ? 200 : 422);
     }
 }

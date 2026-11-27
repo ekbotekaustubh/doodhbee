@@ -15,6 +15,7 @@ use App\Controllers\Api\RouteApiController;
 use App\Controllers\Api\SettingsApiController;
 use App\Controllers\Api\StaffApiController;
 use App\Controllers\Api\SubscriptionApiController;
+use App\Controllers\Api\WebhookApiController;
 use App\Core\Router;
 
 return function (Router $router): void {
@@ -164,9 +165,14 @@ return function (Router $router): void {
     $router->get('/api/subscription', [SubscriptionApiController::class, 'getSubscription'], ['api.tenant']);
     $router->post('/api/subscription/request-upgrade', [SubscriptionApiController::class, 'requestUpgrade'], ['api.tenant']);
     $router->post('/api/subscription/upgrade', [SubscriptionApiController::class, 'upgradeQuota'], ['api.tenant']);
+    $router->post('/api/subscription/razorpay/order', [SubscriptionApiController::class, 'createRazorpayOrder'], ['api.tenant']);
+    $router->post('/api/subscription/razorpay/verify', [SubscriptionApiController::class, 'verifyRazorpayPayment'], ['api.tenant']);
     $router->get('/api/subscription/invoices', [SubscriptionApiController::class, 'getInvoices'], ['api.tenant']);
     $router->get('/api/subscription/invoices/{id}', [SubscriptionApiController::class, 'getInvoice'], ['api.tenant']);
     $router->post('/api/subscription/invoices/{id}/resend', [SubscriptionApiController::class, 'resendInvoice'], ['api.tenant']);
+
+    // 10b. Public Payment Webhooks (Signature-verified)
+    $router->post('/api/webhooks/razorpay', [WebhookApiController::class, 'razorpay']);
 
     // 11. Super Admin Platform Governance
     $router->get('/api/admin/stats', [AdminApiController::class, 'stats'], ['api.admin']);

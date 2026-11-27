@@ -130,6 +130,8 @@ return function (Router $router): void {
     $router->get('/subscription', [SettingsController::class, 'subscriptionView'], ['tenant']);
     $router->post('/subscription/request-upgrade', [SettingsController::class, 'requestUpgrade'], ['tenant']);
     $router->post('/subscription/upgrade', [SettingsController::class, 'upgradeQuota'], ['tenant']);
+    $router->post('/subscription/razorpay/order', [SettingsController::class, 'createRazorpayOrder'], ['tenant']);
+    $router->post('/subscription/razorpay/verify', [SettingsController::class, 'verifyRazorpayPayment'], ['tenant']);
     $router->get('/subscription/invoices/{id}', [SettingsController::class, 'subscriptionInvoiceView'], ['tenant']);
     $router->get('/subscription/invoices/{id}/pdf', [SettingsController::class, 'subscriptionInvoicePdf'], ['tenant']);
     $router->post('/subscription/invoices/{id}/resend', [SettingsController::class, 'resendSubscriptionInvoice'], ['tenant']);

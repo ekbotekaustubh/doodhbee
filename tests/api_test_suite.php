@@ -645,6 +645,90 @@ runApiTest("API Subscription: Offline Payment UTR Submission & SuperAdmin Approv
 }, $passed, $failed);
 
 // ==========================================
+// TEST 11c: Razorpay Online Payment Gateway API Flow
+// ==========================================
+runApiTest("API Subscription: Razorpay Order Creation, Signature Verification & Admin Secret Masking", function() use (&$tenantToken, &$adminToken, $db) {
+    $origRzp = $db->fetchAll("SELECT setting_key, setting_value FROM system_settings WHERE setting_key LIKE 'razorpay_%'");
+    $testSecret = 'rzp_api_secret_test_999';
+
+    try {
+        // 1. Admin configures Razorpay keys via /api/admin/settings
+        $resCfg = callApi('PUT', '/api/admin/settings', [
+            'razorpay_enabled' => 1,
+            'razorpay_key_id' => 'rzp_test_api_123',
+            'razorpay_key_secret' => $testSecret,
+            'razorpay_webhook_secret' => 'rzp_wh_api_123',
+        ], $adminToken);
+
+        if ($resCfg['status'] !== 200 || empty($resCfg['body']['data']['razorpay_key_secret_configured']) || isset($resCfg['body']['data']['razorpay_key_secret'])) {
+            throw new \Exception("Admin Razorpay config or secret masking failed: " . json_encode($resCfg));
+        }
+
+        // 2. Tenant sees public Razorpay key_id (never secret) and Growth plan
+        $resSub = callApi('GET', '/api/subscription', [], $tenantToken);
+        $rzpPub = $resSub['body']['data']['razorpay'] ?? [];
+        if (empty($rzpPub['configured']) || ($rzpPub['key_id'] ?? '') !== 'rzp_test_api_123' || isset($rzpPub['key_secret'])) {
+            throw new \Exception("Tenant public Razorpay config mismatch: " . json_encode($rzpPub));
+        }
+
+        $growthPlan = null;
+        foreach ($resSub['body']['data']['plans'] as $p) {
+            if (($p['code'] ?? '') === 'growth') {
+                $growthPlan = $p;
+                break;
+            }
+        }
+
+        // 3. Create Razorpay order for Growth Monthly
+        $resOrder = callApi('POST', '/api/subscription/razorpay/order', [
+            'plan_id' => (int)$growthPlan['id'],
+            'billing_cycle' => 'monthly',
+        ], $tenantToken);
+
+        if ($resOrder['status'] !== 201 || empty($resOrder['body']['data']['order_id']) || (int)$resOrder['body']['data']['amount_paise'] !== 59000) {
+            throw new \Exception("Razorpay order API failed: " . json_encode($resOrder));
+        }
+        $orderId = $resOrder['body']['data']['order_id'];
+
+        // 4. Invalid signature must fail with 422
+        $resBad = callApi('POST', '/api/subscription/razorpay/verify', [
+            'razorpay_order_id' => $orderId,
+            'razorpay_payment_id' => 'pay_api_bad',
+            'razorpay_signature' => 'wrong_sig',
+        ], $tenantToken);
+        if ($resBad['status'] !== 422) {
+            throw new \Exception("Expected 422 on invalid signature, got {$resBad['status']}");
+        }
+
+        $db->execute("UPDATE razorpay_orders SET status = 'created' WHERE razorpay_order_id = ?", [$orderId]);
+
+        // 5. Valid signature activates Growth + generates GST invoice
+        $paymentId = 'pay_api_ok_' . time();
+        $validSig = hash_hmac('sha256', "{$orderId}|{$paymentId}", $testSecret);
+        $resOk = callApi('POST', '/api/subscription/razorpay/verify', [
+            'razorpay_order_id' => $orderId,
+            'razorpay_payment_id' => $paymentId,
+            'razorpay_signature' => $validSig,
+        ], $tenantToken);
+        if ($resOk['status'] !== 200 || ($resOk['body']['data']['quota']['plan_code'] ?? '') !== 'growth' || empty($resOk['body']['data']['invoice']['invoice_number'])) {
+            throw new \Exception("Razorpay verify API failed: " . json_encode($resOk));
+        }
+    } finally {
+        $db->execute("DELETE FROM razorpay_orders WHERE tenant_id = 1");
+        $starterPlan = $db->fetchOne("SELECT id FROM subscription_plans WHERE code = 'starter' LIMIT 1");
+        $db->execute(
+            "UPDATE tenant_subscriptions SET plan_id = ?, purchased_blocks = 1, max_customers_allowed = 100, amount_paid = 2000.00, billing_cycle = 'yearly', valid_until = '2027-12-31', payment_status = 'active' WHERE tenant_id = 1",
+            [$starterPlan ? (int)$starterPlan['id'] : 2]
+        );
+        $db->execute("UPDATE system_settings SET setting_value = '0' WHERE setting_key = 'razorpay_enabled'");
+        $db->execute("UPDATE system_settings SET setting_value = '' WHERE setting_key IN ('razorpay_key_id', 'razorpay_key_secret', 'razorpay_webhook_secret')");
+        foreach ($origRzp as $rs) {
+            $db->execute("UPDATE system_settings SET setting_value = ? WHERE setting_key = ?", [$rs['setting_value'], $rs['setting_key']]);
+        }
+    }
+}, $passed, $failed);
+
+// ==========================================
 // TEST 12: Super Admin Platform Governance
 // ==========================================
 runApiTest("API Super Admin: Platform Stats, Settings & Tenant Governance", function() use (&$adminToken) {

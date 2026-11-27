@@ -354,6 +354,40 @@
                 </div>
             </div>
 
+            <!-- Razorpay Payment Gateway Settings -->
+            <div class="pt-4 border-t border-slate-800">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                    <h3 class="text-xs font-black uppercase text-blue-400 tracking-wider">
+                        ⚡ Razorpay Online Payment Gateway (Instant Plan Activation)
+                    </h3>
+                    <span class="text-[10px] font-mono text-slate-400">
+                        Webhook URL: <span class="text-slate-200 select-all"><?= e(url('/api/webhooks/razorpay')) ?></span>
+                    </span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
+                    <div class="flex items-center gap-2 pb-2">
+                        <input type="checkbox" id="rzp-enabled" name="razorpay_enabled" value="1" <?= !empty($systemSettings['razorpay_enabled']) ? 'checked' : '' ?> class="rounded text-blue-600">
+                        <label for="rzp-enabled" class="text-xs font-bold text-slate-200">Enable Razorpay Checkout</label>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold uppercase text-slate-300 mb-1">Razorpay Key ID</label>
+                        <input type="text" name="razorpay_key_id" placeholder="rzp_test_xxxxxxxx" value="<?= e($systemSettings['razorpay_key_id'] ?? '') ?>" class="w-full text-xs font-mono font-bold px-3 py-2 bg-slate-950 border border-slate-700 text-white rounded-xl focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold uppercase text-slate-300 mb-1">
+                            Key Secret <?= !empty($systemSettings['razorpay_key_secret_configured']) ? '<span class="text-emerald-400">(Saved)</span>' : '' ?>
+                        </label>
+                        <input type="password" name="razorpay_key_secret" autocomplete="new-password" placeholder="<?= !empty($systemSettings['razorpay_key_secret_configured']) ? 'Leave blank to keep saved secret' : 'Enter Razorpay Key Secret' ?>" class="w-full text-xs font-mono font-bold px-3 py-2 bg-slate-950 border border-slate-700 text-white rounded-xl focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold uppercase text-slate-300 mb-1">
+                            Webhook Secret <?= !empty($systemSettings['razorpay_webhook_secret_configured']) ? '<span class="text-emerald-400">(Saved)</span>' : '' ?>
+                        </label>
+                        <input type="password" name="razorpay_webhook_secret" autocomplete="new-password" placeholder="<?= !empty($systemSettings['razorpay_webhook_secret_configured']) ? 'Leave blank to keep saved secret' : 'Optional Webhook Secret' ?>" class="w-full text-xs font-mono font-bold px-3 py-2 bg-slate-950 border border-slate-700 text-white rounded-xl focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+            </div>
+
             <!-- Offline Payment Details Displayed to Tenants -->
             <div class="pt-4 border-t border-slate-800">
                 <h3 class="text-xs font-black uppercase text-purple-400 mb-3 tracking-wider">

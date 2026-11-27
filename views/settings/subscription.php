@@ -323,9 +323,29 @@
                             </div>
                             <p class="text-[11px] text-blue-900" id="plan-action-note"></p>
                             <p class="text-[10px] text-slate-500">
-                                Tax Invoice issued by <strong><?= e($pricing['company_legal_name'] ?? 'Shri Ram Open Source Technologies') ?></strong> (GSTIN: <span class="font-mono"><?= e($pricing['company_gstin'] ?? '27AARPE1865G1ZJ') ?></span>) via Email & WhatsApp upon approval.
+                                Tax Invoice issued by <strong><?= e($pricing['company_legal_name'] ?? 'Shri Ram Open Source Technologies') ?></strong> (GSTIN: <span class="font-mono"><?= e($pricing['company_gstin'] ?? '27AARPE1865G1ZJ') ?></span>) via Email & WhatsApp.
                             </p>
                         </div>
+
+                        <?php if (!empty($razorpay['configured'])): ?>
+                        <!-- Instant Online Payment via Razorpay -->
+                        <div class="p-4 rounded-xl bg-gradient-to-r from-indigo-50 to-blue-50 border-2 border-indigo-200 space-y-2.5">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-black uppercase tracking-wider text-indigo-900">⚡ Instant Online Checkout</span>
+                                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">UPI • Cards • NetBanking</span>
+                            </div>
+                            <div id="razorpay-error-box" class="hidden p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-[11px] font-bold"></div>
+                            <button type="button" id="razorpay-pay-btn" onclick="startRazorpayCheckout()" class="tap-target w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-400 text-white rounded-xl text-xs font-black shadow-md transition flex items-center justify-center gap-2">
+                                <span>💳 Pay Online with Razorpay</span>
+                            </button>
+                            <p class="text-[10px] text-indigo-800 text-center">Instant activation & automatic GST Tax Invoice on payment completion.</p>
+                        </div>
+                        <div class="relative flex py-1 items-center">
+                            <div class="flex-grow border-t border-slate-200"></div>
+                            <span class="flex-shrink mx-3 text-[10px] font-black uppercase text-slate-400">Or Submit Manual UTR</span>
+                            <div class="flex-grow border-t border-slate-200"></div>
+                        </div>
+                        <?php endif; ?>
 
                         <!-- Payment Method -->
                         <div>
@@ -507,6 +527,9 @@
     <?php endif; ?>
 </div>
 
+<?php if (!empty($razorpay['configured'])): ?>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<?php endif; ?>
 <script>
 const PLAN_PREVIEWS = <?= json_encode(array_column($paidPlans, 'previews', 'id')) ?>;
 const PLAN_CURRENCY = <?= json_encode($currency) ?>;
@@ -566,6 +589,7 @@ function refreshPlanCards() {
     const amountElem = document.getElementById('display-amount');
     const noteElem = document.getElementById('plan-action-note');
     const submitBtn = document.getElementById('submit-plan-btn');
+    const rzpBtn = document.getElementById('razorpay-pay-btn');
 
     if (selectedRadio && !selectedRadio.disabled) {
         const selPid = selectedRadio.value;
@@ -578,6 +602,7 @@ function refreshPlanCards() {
             if (amountElem) amountElem.innerText = PLAN_CURRENCY + Number(selPrev.amount).toFixed(2);
             if (noteElem) noteElem.innerText = selPrev.note || '';
             if (submitBtn) submitBtn.disabled = false;
+            if (rzpBtn) rzpBtn.disabled = false;
             return;
         }
     }
@@ -587,9 +612,132 @@ function refreshPlanCards() {
     if (amountElem) amountElem.innerText = '—';
     if (noteElem) noteElem.innerText = 'No eligible plan available for your current active customer count.';
     if (submitBtn) submitBtn.disabled = true;
+    if (rzpBtn) rzpBtn.disabled = true;
 }
 
 document.addEventListener('DOMContentLoaded', refreshPlanCards);
+
+<?php if (!empty($razorpay['configured'])): ?>
+const RZP_ENDPOINTS = {
+    order: <?= json_encode(url('/subscription/razorpay/order')) ?>,
+    verify: <?= json_encode(url('/subscription/razorpay/verify')) ?>,
+    csrf: <?= json_encode(\App\Core\Auth::csrfToken()) ?>
+};
+
+function showRzpError(msg) {
+    const box = document.getElementById('razorpay-error-box');
+    if (box) {
+        box.innerText = msg;
+        box.classList.remove('hidden');
+    }
+}
+
+async function startRazorpayCheckout() {
+    const btn = document.getElementById('razorpay-pay-btn');
+    const errBox = document.getElementById('razorpay-error-box');
+    if (errBox) errBox.classList.add('hidden');
+
+    const selectedRadio = document.querySelector('input[name="plan_id"]:checked');
+    const cycleEl = document.querySelector('input[name="billing_cycle"]:checked');
+    if (!selectedRadio || selectedRadio.disabled) {
+        showRzpError('Please select an eligible subscription plan.');
+        return;
+    }
+    if (typeof Razorpay === 'undefined') {
+        showRzpError('Razorpay Checkout script failed to load. Check internet connection or use manual UTR.');
+        return;
+    }
+
+    const origText = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span>⏳ Creating Razorpay Order...</span>';
+    }
+
+    try {
+        const res = await fetch(RZP_ENDPOINTS.order, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': RZP_ENDPOINTS.csrf
+            },
+            body: JSON.stringify({
+                plan_id: parseInt(selectedRadio.value, 10),
+                billing_cycle: cycleEl ? cycleEl.value : 'monthly'
+            })
+        });
+        const json = await res.json();
+        if (!json.success || !json.data || !json.data.order_id) {
+            throw new Error(json.error || 'Could not initialize Razorpay checkout.');
+        }
+
+        const order = json.data;
+        const rzp = new Razorpay({
+            key: order.key_id,
+            amount: order.amount_paise,
+            currency: order.currency || 'INR',
+            name: order.company_name || 'Shri Ram Open Source Technologies',
+            description: order.description || 'DoodhBee Subscription',
+            order_id: order.order_id,
+            prefill: order.prefill || {},
+            theme: { color: '#4f46e5' },
+            handler: async function (response) {
+                if (btn) {
+                    btn.disabled = true;
+                    btn.innerHTML = '<span>⏳ Verifying Payment...</span>';
+                }
+                try {
+                    const vRes = await fetch(RZP_ENDPOINTS.verify, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-Token': RZP_ENDPOINTS.csrf
+                        },
+                        body: JSON.stringify({
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_signature: response.razorpay_signature
+                        })
+                    });
+                    const vJson = await vRes.json();
+                    if (!vJson.success) {
+                        throw new Error(vJson.error || 'Payment verification failed.');
+                    }
+                    window.location.reload();
+                } catch (e) {
+                    showRzpError(e.message || 'Verification failed.');
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = origText;
+                    }
+                }
+            },
+            modal: {
+                ondismiss: function () {
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = origText;
+                    }
+                }
+            }
+        });
+        rzp.on('payment.failed', function (resp) {
+            showRzpError((resp.error && resp.error.description) ? resp.error.description : 'Payment failed.');
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = origText;
+            }
+        });
+        rzp.open();
+    } catch (e) {
+        showRzpError(e.message || 'Unable to start Razorpay checkout.');
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = origText;
+        }
+    }
+}
+<?php endif; ?>
 
 function copyToClipboard(elementId, btn) {
     const text = document.getElementById(elementId).innerText.trim();

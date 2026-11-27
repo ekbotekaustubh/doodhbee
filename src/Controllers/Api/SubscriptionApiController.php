@@ -6,12 +6,14 @@ namespace App\Controllers\Api;
 use App\Core\Auth;
 use App\Core\Request;
 use App\Services\QuotaService;
+use App\Services\RazorpayService;
 use App\Services\SubscriptionInvoiceService;
 
 final class SubscriptionApiController extends ApiBaseController
 {
     private QuotaService $quotaService;
     private SubscriptionInvoiceService $invoiceService;
+    private RazorpayService $razorpayService;
 
     public function __construct()
     {
@@ -19,6 +21,7 @@ final class SubscriptionApiController extends ApiBaseController
         Auth::requireApiTenantAdmin();
         $this->quotaService = new QuotaService();
         $this->invoiceService = new SubscriptionInvoiceService();
+        $this->razorpayService = new RazorpayService();
     }
 
     public function getSubscription(Request $request): void
@@ -72,6 +75,7 @@ final class SubscriptionApiController extends ApiBaseController
             'pending_request' => $pendingRequest,
             'upgrade_requests' => $upgradeRequests,
             'invoices' => $invoices,
+            'razorpay' => $this->razorpayService->getPublicConfig(),
         ]);
     }
 
@@ -265,5 +269,64 @@ final class SubscriptionApiController extends ApiBaseController
         $updated = $this->invoiceService->dispatchNotifications($id);
         $updated['public_pdf_url'] = SubscriptionInvoiceService::getPublicPdfUrl($id, $tenantId);
         $this->jsonSuccess($updated, 'Tax invoice email & WhatsApp notification dispatched.');
+    }
+
+    public function createRazorpayOrder(Request $request): void
+    {
+        $tenantId = $this->tenantId();
+        $planId = (int)$request->input('plan_id', 0);
+        $planCode = trim((string)$request->input('plan_code', ''));
+        if ($planId <= 0 && $planCode !== '') {
+            $foundPlan = $this->quotaService->getPlanByCode($planCode);
+            $planId = $foundPlan ? (int)$foundPlan['id'] : 0;
+        }
+        $billingCycle = trim((string)$request->input('billing_cycle', 'monthly')) ?: 'monthly';
+
+        if ($planId <= 0) {
+            $this->jsonError('A valid subscription plan_id is required.', 422, 'VALIDATION_ERROR');
+            return;
+        }
+
+        $order = null;
+        try {
+            $order = $this->razorpayService->createSubscriptionOrder($tenantId, $planId, $billingCycle);
+        } catch (\InvalidArgumentException $e) {
+            $this->jsonError($e->getMessage(), 422, 'VALIDATION_ERROR');
+            return;
+        } catch (\Throwable $e) {
+            $this->jsonError($e->getMessage(), 502, 'PAYMENT_GATEWAY_ERROR');
+            return;
+        }
+
+        $this->jsonSuccess($order, 'Razorpay order created successfully.', 201);
+    }
+
+    public function verifyRazorpayPayment(Request $request): void
+    {
+        $tenantId = $this->tenantId();
+        $orderId = trim((string)$request->input('razorpay_order_id', ''));
+        $paymentId = trim((string)$request->input('razorpay_payment_id', ''));
+        $signature = trim((string)$request->input('razorpay_signature', ''));
+
+        if ($orderId === '' || $paymentId === '' || $signature === '') {
+            $this->jsonError('razorpay_order_id, razorpay_payment_id, and razorpay_signature are required.', 422, 'VALIDATION_ERROR');
+            return;
+        }
+
+        $result = null;
+        try {
+            $result = $this->razorpayService->verifyAndFulfillOrder($tenantId, $orderId, $paymentId, $signature);
+        } catch (\InvalidArgumentException $e) {
+            $this->jsonError($e->getMessage(), 422, 'SIGNATURE_VERIFICATION_FAILED');
+            return;
+        } catch (\Throwable $e) {
+            $this->jsonError('Payment verification failed: ' . $e->getMessage(), 500, 'SERVER_ERROR');
+            return;
+        }
+
+        $planName = $result['quota']['plan_name'] ?? 'Subscription';
+        $invNo = $result['invoice']['invoice_number'] ?? '';
+        $msg = "Payment verified! {$planName} plan activated." . ($invNo !== '' ? " GST Tax Invoice {$invNo} generated and dispatched." : '');
+        $this->jsonSuccess($result, $msg);
     }
 }

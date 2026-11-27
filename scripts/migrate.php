@@ -222,6 +222,34 @@ try {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
     echo "• Table subscription_invoices verified.\n";
 
+    // 3e. Ensure razorpay_orders table exists
+    $pdo->exec("CREATE TABLE IF NOT EXISTS razorpay_orders (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        tenant_id INT NOT NULL,
+        plan_id INT NOT NULL,
+        billing_cycle ENUM('monthly', 'yearly') NOT NULL DEFAULT 'monthly',
+        action_type VARCHAR(30) NOT NULL DEFAULT 'subscribe',
+        razorpay_order_id VARCHAR(100) UNIQUE NOT NULL,
+        razorpay_payment_id VARCHAR(100) NULL,
+        razorpay_signature VARCHAR(255) NULL,
+        base_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+        gst_percentage DECIMAL(5, 2) NOT NULL DEFAULT 18.00,
+        gst_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+        total_amount DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+        amount_paise INT NOT NULL DEFAULT 0,
+        currency VARCHAR(10) NOT NULL DEFAULT 'INR',
+        status ENUM('created', 'paid', 'failed') NOT NULL DEFAULT 'created',
+        subscription_invoice_id INT NULL,
+        failure_reason TEXT NULL,
+        paid_at DATETIME NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+        INDEX idx_rzp_tenant_status (tenant_id, status),
+        INDEX idx_rzp_payment_id (razorpay_payment_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    echo "• Table razorpay_orders verified.\n";
+
     // Backfill plan_id for existing tenant_subscriptions if NULL
     $starterPlanId = (int)$db->fetchValue("SELECT id FROM subscription_plans WHERE code = 'starter' LIMIT 1");
     $freePlanId = (int)$db->fetchValue("SELECT id FROM subscription_plans WHERE code = 'free' LIMIT 1");
@@ -247,6 +275,10 @@ try {
         'company_gstin' => '27AARPE1865G1ZJ',
         'company_sac_code' => '998314',
         'company_address' => 'Maharashtra, India',
+        'razorpay_enabled' => '0',
+        'razorpay_key_id' => '',
+        'razorpay_key_secret' => '',
+        'razorpay_webhook_secret' => '',
         'currency_symbol' => '₹',
         'platform_name' => 'DoodhBee SaaS',
         'support_email' => 'hello@doodhbee.com',

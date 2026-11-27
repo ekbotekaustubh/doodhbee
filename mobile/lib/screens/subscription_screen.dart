@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:razorpay_flutter/razorpay_flutter.dart';
 import '../core/api/api_client.dart';
 import '../core/constants/api_constants.dart';
 
@@ -11,8 +12,10 @@ class SubscriptionScreen extends StatefulWidget {
 
 class _SubscriptionScreenState extends State<SubscriptionScreen> {
   final ApiClient _api = ApiClient();
+  late final Razorpay _razorpay;
 
   Map<String, dynamic>? _quota;
+  Map<String, dynamic>? _razorpayConfig;
   List<dynamic> _plans = [];
   bool _isLoading = true;
   bool _isUpgrading = false;
@@ -23,7 +26,17 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   @override
   void initState() {
     super.initState();
+    _razorpay = Razorpay();
+    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handleRazorpaySuccess);
+    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handleRazorpayError);
+    _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
     _loadSubscription();
+  }
+
+  @override
+  void dispose() {
+    _razorpay.clear();
+    super.dispose();
   }
 
   Future<void> _loadSubscription() async {
@@ -63,6 +76,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
       setState(() {
         _quota = quota;
+        _razorpayConfig = res.data['razorpay'] is Map ? Map<String, dynamic>.from(res.data['razorpay'] as Map) : null;
         _plans = paidPlans;
         _selectedCycle = cycle;
         _selectedPlanId = defaultPid;
@@ -155,6 +169,12 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
     if (confirmed != true) return;
 
+    final useRazorpay = _razorpayConfig?['configured'] == true;
+    if (useRazorpay) {
+      await _startRazorpayCheckout();
+      return;
+    }
+
     setState(() => _isUpgrading = true);
 
     final res = await _api.post('${ApiConstants.subscription}/upgrade', data: {
@@ -182,6 +202,99 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         ),
       );
     }
+  }
+
+  Future<void> _startRazorpayCheckout() async {
+    setState(() => _isUpgrading = true);
+
+    final res = await _api.post('${ApiConstants.subscription}/razorpay/order', data: {
+      'plan_id': _selectedPlanId,
+      'billing_cycle': _selectedCycle,
+    });
+
+    if (!mounted) return;
+
+    if (!res.success || res.data == null) {
+      setState(() => _isUpgrading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(res.error ?? 'Could not create Razorpay order.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final order = res.data as Map<String, dynamic>;
+    final prefill = order['prefill'] is Map ? Map<String, dynamic>.from(order['prefill'] as Map) : {};
+
+    try {
+      _razorpay.open({
+        'key': order['key_id'],
+        'amount': order['amount_paise'],
+        'currency': order['currency'] ?? 'INR',
+        'name': order['company_name'] ?? 'Shri Ram Open Source Technologies',
+        'description': order['description'] ?? 'DoodhBee Subscription',
+        'order_id': order['order_id'],
+        'prefill': {
+          'name': prefill['name'] ?? '',
+          'email': prefill['email'] ?? '',
+          'contact': prefill['contact'] ?? '',
+        },
+        'theme': {'color': '#4F46E5'},
+      });
+    } catch (e) {
+      setState(() => _isUpgrading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to open Razorpay: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  Future<void> _handleRazorpaySuccess(PaymentSuccessResponse response) async {
+    final res = await _api.post('${ApiConstants.subscription}/razorpay/verify', data: {
+      'razorpay_order_id': response.orderId ?? '',
+      'razorpay_payment_id': response.paymentId ?? '',
+      'razorpay_signature': response.signature ?? '',
+    });
+
+    if (!mounted) return;
+    setState(() => _isUpgrading = false);
+
+    if (res.success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(res.message ?? 'Payment verified & GST invoice generated!'),
+          backgroundColor: const Color(0xFF15803D),
+        ),
+      );
+      _loadSubscription();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(res.error ?? 'Payment signature verification failed.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _handleRazorpayError(PaymentFailureResponse response) {
+    if (!mounted) return;
+    setState(() => _isUpgrading = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(response.message ?? 'Payment cancelled or failed.'),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+
+  void _handleExternalWallet(ExternalWalletResponse response) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('External wallet selected: ${response.walletName ?? ''}')),
+    );
   }
 
   @override
@@ -564,11 +677,15 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                             label: Text(
                               _isUpgrading
                                   ? 'Processing...'
-                                  : 'Activate ${selectedPlan?['name'] ?? 'Plan'} (${_selectedCycle == 'yearly' ? 'Yearly' : 'Monthly'})',
+                                  : (_razorpayConfig?['configured'] == true
+                                      ? 'Pay Online via Razorpay (${selectedPlan?['name'] ?? 'Plan'})'
+                                      : 'Activate ${selectedPlan?['name'] ?? 'Plan'} (${_selectedCycle == 'yearly' ? 'Yearly' : 'Monthly'})'),
                               style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                             ),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF0284C7),
+                              backgroundColor: _razorpayConfig?['configured'] == true
+                                  ? const Color(0xFF4F46E5)
+                                  : const Color(0xFF0284C7),
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),

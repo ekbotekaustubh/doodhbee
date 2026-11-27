@@ -1147,6 +1147,113 @@ runTest("SaaS Plans: Named Packs, Early Renewal, Mid-Cycle Upgrade, Downgrade Wi
     }
 }, $passed, $failed);
 
+// TEST 20: Razorpay Order Creation, HMAC Signature Verification, Idempotency & Webhook
+runTest("Razorpay Payment Gateway: Order, Signature Verify, Idempotent Fulfillment & Webhook", function() use ($quotaService, $db) {
+    $origSub = $db->fetchOne("SELECT * FROM tenant_subscriptions WHERE tenant_id = 2");
+    $origRzpSettings = $db->fetchAll("SELECT setting_key, setting_value FROM system_settings WHERE setting_key LIKE 'razorpay_%'");
+    $starter = $quotaService->getPlanByCode('starter');
+    $growth = $quotaService->getPlanByCode('growth');
+
+    $testSecret = 'rzp_test_secret_unit_12345';
+    $testWebhookSecret = 'rzp_wh_secret_unit_67890';
+
+    try {
+        // Configure Razorpay test keys
+        $stmt = $db->getPdo()->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)");
+        $stmt->execute(['razorpay_enabled', '1']);
+        $stmt->execute(['razorpay_key_id', 'rzp_test_unit_key']);
+        $stmt->execute(['razorpay_key_secret', $testSecret]);
+        $stmt->execute(['razorpay_webhook_secret', $testWebhookSecret]);
+
+        $rzp = new \App\Services\RazorpayService($db, $quotaService);
+        if (!$rzp->isConfigured()) {
+            throw new \Exception("Razorpay should report configured when enabled with test keys");
+        }
+
+        // 1. Create order for Starter Monthly (200 + 18% GST = 236 => 23600 paise)
+        $order = $rzp->createSubscriptionOrder(2, (int)$starter['id'], 'monthly');
+        if (empty($order['order_id']) || (int)$order['amount_paise'] !== 23600 || abs((float)$order['gst_amount'] - 36.0) > 0.01) {
+            throw new \Exception("Razorpay order creation mismatch: " . json_encode($order));
+        }
+
+        // 2. Reject invalid signature
+        $sigFailed = false;
+        try {
+            $rzp->verifyAndFulfillOrder(2, $order['order_id'], 'pay_bad_001', 'invalid_sig');
+        } catch (\InvalidArgumentException $e) {
+            $sigFailed = true;
+        }
+        if (!$sigFailed) {
+            throw new \Exception("Invalid Razorpay signature was not rejected");
+        }
+
+        // Reset status back to created so valid signature test runs on same order or create fresh order
+        $db->execute("UPDATE razorpay_orders SET status = 'created' WHERE razorpay_order_id = ?", [$order['order_id']]);
+
+        // 3. Valid HMAC signature -> fulfills plan, creates GST invoice
+        $paymentId = 'pay_test_' . time();
+        $validSig = hash_hmac('sha256', $order['order_id'] . '|' . $paymentId, $testSecret);
+        $fulfilled = $rzp->verifyAndFulfillOrder(2, $order['order_id'], $paymentId, $validSig);
+        if (($fulfilled['quota']['plan_code'] ?? '') !== 'starter' || ($fulfilled['invoice']['payment_method'] ?? '') !== 'razorpay' || ($fulfilled['invoice']['utr_number'] ?? '') !== $paymentId) {
+            throw new \Exception("Razorpay fulfillment mismatch: " . json_encode($fulfilled));
+        }
+
+        // 4. Second verification on same order must be idempotent
+        $dup = $rzp->verifyAndFulfillOrder(2, $order['order_id'], $paymentId, $validSig);
+        if (empty($dup['already_processed'])) {
+            throw new \Exception("Duplicate Razorpay verification was not idempotent");
+        }
+
+        // 5. Webhook fulfillment on a Growth Monthly order
+        $order2 = $rzp->createSubscriptionOrder(2, (int)$growth['id'], 'monthly');
+        $pay2 = 'pay_wh_' . time();
+        $whPayload = json_encode([
+            'event' => 'payment.captured',
+            'payload' => [
+                'payment' => [
+                    'entity' => [
+                        'id' => $pay2,
+                        'order_id' => $order2['order_id'],
+                    ],
+                ],
+            ],
+        ]);
+        $whSig = hash_hmac('sha256', $whPayload, $testWebhookSecret);
+        $whRes = $rzp->handleWebhook($whPayload, $whSig);
+        if (empty($whRes['handled']) || empty($whRes['invoice_id'])) {
+            throw new \Exception("Razorpay webhook fulfillment failed: " . json_encode($whRes));
+        }
+
+        $qAfter = $quotaService->getTenantQuota(2);
+        if ($qAfter['plan_code'] !== 'growth' || $qAfter['max_allowed'] !== 300) {
+            throw new \Exception("Quota not upgraded to Growth after webhook: " . json_encode($qAfter));
+        }
+    } finally {
+        $db->execute("DELETE FROM razorpay_orders WHERE tenant_id = 2");
+        $db->execute("DELETE FROM subscription_invoices WHERE tenant_id = 2");
+        if ($origSub) {
+            $db->execute(
+                "UPDATE tenant_subscriptions SET plan_id = ?, purchased_blocks = ?, max_customers_allowed = ?, amount_paid = ?, billing_cycle = ?, started_at = ?, valid_until = ?, payment_status = ? WHERE tenant_id = 2",
+                [
+                    $origSub['plan_id'] ?? null,
+                    $origSub['purchased_blocks'],
+                    $origSub['max_customers_allowed'],
+                    $origSub['amount_paid'],
+                    $origSub['billing_cycle'] ?? null,
+                    $origSub['started_at'] ?? null,
+                    $origSub['valid_until'],
+                    $origSub['payment_status'],
+                ]
+            );
+        }
+        $db->execute("UPDATE system_settings SET setting_value = '0' WHERE setting_key = 'razorpay_enabled'");
+        $db->execute("UPDATE system_settings SET setting_value = '' WHERE setting_key IN ('razorpay_key_id', 'razorpay_key_secret', 'razorpay_webhook_secret')");
+        foreach ($origRzpSettings as $rs) {
+            $db->execute("UPDATE system_settings SET setting_value = ? WHERE setting_key = ?", [$rs['setting_value'], $rs['setting_key']]);
+        }
+    }
+}, $passed, $failed);
+
 echo "\n========================================================\n";
 echo "   TEST RESULTS: {$passed} PASSED, {$failed} FAILED\n";
 echo "========================================================\n";

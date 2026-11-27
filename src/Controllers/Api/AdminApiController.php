@@ -52,6 +52,9 @@ final class AdminApiController extends ApiBaseController
     public function getSettings(Request $request): void
     {
         $settings = $this->quotaService->getPlatformSettings();
+        $settings['razorpay_key_secret_configured'] = !empty($settings['razorpay_key_secret']);
+        $settings['razorpay_webhook_secret_configured'] = !empty($settings['razorpay_webhook_secret']);
+        unset($settings['razorpay_key_secret'], $settings['razorpay_webhook_secret']);
         $this->jsonSuccess($settings);
     }
 
@@ -112,6 +115,24 @@ final class AdminApiController extends ApiBaseController
         if ($request->has('payment_qr_image_url')) {
             $settings['payment_qr_image_url'] = trim((string)$request->input('payment_qr_image_url', ''));
         }
+        if ($request->has('razorpay_enabled')) {
+            $settings['razorpay_enabled'] = !empty($request->input('razorpay_enabled')) ? '1' : '0';
+        }
+        if ($request->has('razorpay_key_id')) {
+            $settings['razorpay_key_id'] = trim((string)$request->input('razorpay_key_id', ''));
+        }
+        if ($request->has('razorpay_key_secret')) {
+            $rzpSecret = trim((string)$request->input('razorpay_key_secret', ''));
+            if ($rzpSecret !== '') {
+                $settings['razorpay_key_secret'] = $rzpSecret;
+            }
+        }
+        if ($request->has('razorpay_webhook_secret')) {
+            $whSecret = trim((string)$request->input('razorpay_webhook_secret', ''));
+            if ($whSecret !== '') {
+                $settings['razorpay_webhook_secret'] = $whSecret;
+            }
+        }
 
         $stmt = $this->db->getPdo()->prepare(
             "INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?)
@@ -123,6 +144,9 @@ final class AdminApiController extends ApiBaseController
         }
 
         $fresh = $this->quotaService->getPlatformSettings();
+        $fresh['razorpay_key_secret_configured'] = !empty($fresh['razorpay_key_secret']);
+        $fresh['razorpay_webhook_secret_configured'] = !empty($fresh['razorpay_webhook_secret']);
+        unset($fresh['razorpay_key_secret'], $fresh['razorpay_webhook_secret']);
         $this->jsonSuccess($fresh, 'Platform settings updated successfully');
     }
 

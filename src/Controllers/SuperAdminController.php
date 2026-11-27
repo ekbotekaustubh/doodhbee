@@ -78,7 +78,18 @@ final class SuperAdminController
             'payment_bank_name' => trim((string)$request->post('payment_bank_name', '')),
             'payment_account_number' => trim((string)$request->post('payment_account_number', '')),
             'payment_ifsc_code' => trim((string)$request->post('payment_ifsc_code', '')),
+            'razorpay_enabled' => $request->post('razorpay_enabled') ? 1 : 0,
+            'razorpay_key_id' => trim((string)$request->post('razorpay_key_id', '')),
         ];
+
+        $rzpSecret = trim((string)$request->post('razorpay_key_secret', ''));
+        if ($rzpSecret !== '') {
+            $payload['razorpay_key_secret'] = $rzpSecret;
+        }
+        $whSecret = trim((string)$request->post('razorpay_webhook_secret', ''));
+        if ($whSecret !== '') {
+            $payload['razorpay_webhook_secret'] = $whSecret;
+        }
 
         // Update settings via REST API
         $res = ApiClient::put('/api/admin/settings', $payload);

@@ -187,6 +187,10 @@ final class QuotaService
             'company_gstin' => '27AARPE1865G1ZJ',
             'company_sac_code' => '998314',
             'company_address' => 'Maharashtra, India',
+            'razorpay_enabled' => 0,
+            'razorpay_key_id' => '',
+            'razorpay_key_secret' => '',
+            'razorpay_webhook_secret' => '',
             'currency_symbol' => '₹',
             'platform_name' => 'DoodhBee SaaS',
             'support_email' => 'support@doodhbee.com',
@@ -203,7 +207,7 @@ final class QuotaService
         foreach ($rows as $r) {
             $key = $r['setting_key'];
             $val = $r['setting_value'];
-            if (in_array($key, ['free_customer_limit', 'paid_tier_unit_size', 'subscription_grace_days', 'subscription_gst_enabled'], true)) {
+            if (in_array($key, ['free_customer_limit', 'paid_tier_unit_size', 'subscription_grace_days', 'subscription_gst_enabled', 'razorpay_enabled'], true)) {
                 $settings[$key] = (int)$val;
             } elseif (in_array($key, ['paid_tier_unit_price', 'paid_tier_monthly_price', 'paid_tier_yearly_price', 'subscription_gst_percentage'], true)) {
                 $settings[$key] = (float)$val;
