@@ -128,7 +128,6 @@ return function (Router $router): void {
     $router->post('/settings/staff/{id}/toggle', [SettingsController::class, 'toggleStaff'], ['tenant']);
     $router->post('/settings/staff/{id}/delete', [SettingsController::class, 'deleteStaff'], ['tenant']);
     $router->get('/subscription', [SettingsController::class, 'subscriptionView'], ['tenant']);
-    $router->post('/subscription/request-upgrade', [SettingsController::class, 'requestUpgrade'], ['tenant']);
     $router->post('/subscription/upgrade', [SettingsController::class, 'upgradeQuota'], ['tenant']);
     $router->post('/subscription/razorpay/order', [SettingsController::class, 'createRazorpayOrder'], ['tenant']);
     $router->post('/subscription/razorpay/verify', [SettingsController::class, 'verifyRazorpayPayment'], ['tenant']);
@@ -145,8 +144,6 @@ return function (Router $router): void {
     $router->post('/admin/plans/{id}/toggle', [SuperAdminController::class, 'togglePlan'], ['admin']);
     $router->post('/admin/tenants/{id}/toggle-status', [SuperAdminController::class, 'toggleTenantStatus'], ['admin']);
     $router->post('/admin/tenants/{id}/quota', [SuperAdminController::class, 'adjustQuota'], ['admin']);
-    $router->post('/admin/subscription-requests/{id}/approve', [SuperAdminController::class, 'approveUpgradeRequest'], ['admin']);
-    $router->post('/admin/subscription-requests/{id}/reject', [SuperAdminController::class, 'rejectUpgradeRequest'], ['admin']);
     $router->get('/admin/subscription-invoices/{id}/pdf', [SuperAdminController::class, 'subscriptionInvoicePdf'], ['admin']);
 
     // 8. REST API Endpoints (Mobile & Headless)

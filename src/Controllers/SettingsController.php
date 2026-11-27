@@ -424,9 +424,6 @@ final class SettingsController
         $quota = $subRes['data']['quota'] ?? [];
         $plans = $subRes['data']['plans'] ?? [];
         $pricing = $subRes['data']['pricing'] ?? [];
-        $bankDetails = $subRes['data']['bank_details'] ?? [];
-        $pendingRequest = $subRes['data']['pending_request'] ?? null;
-        $upgradeRequests = $subRes['data']['upgrade_requests'] ?? [];
         $subInvoices = $subRes['data']['invoices'] ?? [];
         $razorpay = $subRes['data']['razorpay'] ?? [];
 
@@ -434,9 +431,6 @@ final class SettingsController
             'quota' => $quota,
             'plans' => $plans,
             'pricing' => $pricing,
-            'bankDetails' => $bankDetails,
-            'pendingRequest' => $pendingRequest,
-            'upgradeRequests' => $upgradeRequests,
             'subInvoices' => $subInvoices,
             'razorpay' => $razorpay,
             'success' => Auth::flash('success'),
@@ -444,53 +438,13 @@ final class SettingsController
         ], 'main');
     }
 
-    public function requestUpgrade(Request $request): void
-    {
-        Auth::requireTenantAdmin();
-        $planId = (int)$request->post('plan_id', 0);
-        $blocks = max(1, (int)$request->post('blocks', 1));
-        $utrNumber = trim((string)$request->post('utr_number', ''));
-        $paymentMethod = trim((string)$request->post('payment_method', 'upi'));
-        $notes = trim((string)$request->post('notes', ''));
-        $billingCycle = trim((string)$request->post('billing_cycle', 'monthly')) ?: 'monthly';
-        $requestType = trim((string)$request->post('request_type', 'add_blocks')) ?: 'add_blocks';
-
-        $payload = [
-            'blocks' => $blocks,
-            'utr_number' => $utrNumber,
-            'payment_method' => $paymentMethod,
-            'notes' => $notes,
-            'billing_cycle' => $billingCycle,
-            'request_type' => $requestType,
-        ];
-        if ($planId > 0) {
-            $payload['plan_id'] = $planId;
-        }
-
-        $res = ApiClient::post('/api/subscription/request-upgrade', $payload);
-
-        if ($res['success']) {
-            Auth::flash('success', $res['message'] ?? 'Payment upgrade request submitted successfully. SuperAdmin will verify and activate your quota.');
-        } else {
-            Auth::flash('error', $res['error'] ?? 'Failed to submit payment upgrade request.');
-        }
-
-        Response::redirect(url('/subscription'));
-    }
-
     public function upgradeQuota(Request $request): void
     {
         Auth::requireTenantAdmin();
         $planId = (int)$request->post('plan_id', 0);
         $blocks = max(1, (int)$request->post('blocks', 1));
-        $utrNumber = trim((string)$request->post('utr_number', ''));
         $billingCycle = trim((string)$request->post('billing_cycle', 'monthly')) ?: 'monthly';
         $requestType = trim((string)$request->post('request_type', 'add_blocks')) ?: 'add_blocks';
-
-        if (!empty($utrNumber)) {
-            $this->requestUpgrade($request);
-            return;
-        }
 
         $payload = [
             'blocks' => $blocks,

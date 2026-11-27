@@ -17,52 +17,6 @@
         </div>
     <?php endif; ?>
 
-    <?php if (!empty($pendingRequest)): ?>
-    <!-- Pending Subscription Request Banner -->
-    <div class="bg-amber-50 rounded-3xl border-2 border-amber-300 p-6 shadow-sm space-y-3">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div class="flex items-start gap-3">
-                <span class="text-2xl">⏳</span>
-                <div>
-                    <h3 class="text-sm font-black text-amber-950 uppercase tracking-wider">
-                        Subscription Request Pending SuperAdmin Verification
-                    </h3>
-                    <p class="text-xs text-amber-800 mt-0.5">
-                        <?php
-                            $pReqType = ucfirst((string)($pendingRequest['request_type'] ?? 'plan'));
-                            $pReqCycle = ucfirst((string)($pendingRequest['billing_cycle'] ?? 'monthly'));
-                            $pPlanName = (string)($pendingRequest['plan_name'] ?? 'Paid Plan');
-                            $pLimit = (int)($pendingRequest['customer_limit'] ?? $pendingRequest['customer_slots'] ?? 100);
-                        ?>
-                        Your payment proof of <strong><?= formatMoney((float)$pendingRequest['amount'], $quota['currency_symbol']) ?></strong> for <strong><?= e($pPlanName) ?> (<?= e($pReqCycle) ?> • <?= e($pReqType) ?> • <?= $pLimit ?> customers)</strong> has been recorded and is awaiting verification.
-                    </p>
-                </div>
-            </div>
-            <span class="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-amber-200 text-amber-900 border border-amber-300 self-start sm:self-center">
-                Pending Verification
-            </span>
-        </div>
-
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-amber-200 text-xs text-amber-900">
-            <div>
-                <span class="text-[10px] font-black uppercase text-amber-700 block">Transaction Reference / UTR</span>
-                <span class="font-mono font-black text-sm"><?= e($pendingRequest['utr_number']) ?></span>
-            </div>
-            <div>
-                <span class="text-[10px] font-black uppercase text-amber-700 block">Payment Method</span>
-                <span class="font-bold uppercase"><?= e($pendingRequest['payment_method']) ?></span>
-            </div>
-            <div>
-                <span class="text-[10px] font-black uppercase text-amber-700 block">Submitted At</span>
-                <span class="font-medium"><?= formatDate($pendingRequest['created_at'], 'd M Y, h:i A') ?></span>
-            </div>
-        </div>
-        <p class="text-[11px] text-amber-700 italic">
-            Once platform administration reconciles the transaction, your selected plan will activate automatically.
-        </p>
-    </div>
-    <?php endif; ?>
-
     <?php
         $currency = $quota['currency_symbol'] ?? '₹';
         $isExpired = !empty($quota['is_expired']);
@@ -168,8 +122,8 @@
             </div>
         </div>
 
-        <!-- Plan Selection & Offline Payment -->
-        <div class="pt-6 space-y-6">
+        <!-- Plan Selection & Razorpay Checkout -->
+        <div class="pt-6 space-y-5">
             <div>
                 <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
                     <span>⚡ Subscribe, Renew, or Switch Plan</span>
@@ -179,284 +133,103 @@
                 </p>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-                <!-- STEP 1: PAYMENT DETAILS & QR -->
-                <div class="bg-gradient-to-br from-slate-900 to-slate-950 text-white p-6 rounded-2xl border border-slate-800 space-y-4 shadow-sm">
-                    <div class="flex items-center justify-between pb-3 border-b border-slate-800">
-                        <span class="text-[11px] font-black uppercase tracking-wider text-purple-400">Step 1: Transfer Payment</span>
-                        <span class="text-xs text-slate-400">UPI / IMPS / NEFT</span>
-                    </div>
-
-                    <div class="space-y-2">
-                        <label class="text-[10px] font-black uppercase text-slate-400 tracking-wider">Official Platform UPI ID</label>
-                        <div class="flex items-center justify-between bg-slate-800/80 px-3.5 py-2.5 rounded-xl border border-slate-700">
-                            <span class="font-mono text-sm font-black text-emerald-400" id="upi-id-text"><?= e($bankDetails['upi_id'] ?? 'kaustubh51-3@okicici') ?></span>
-                            <button type="button" onclick="copyToClipboard('upi-id-text', this)" class="text-[11px] font-bold px-2 py-1 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition">
-                                Copy
-                            </button>
-                        </div>
-                    </div>
-
-                    <?php 
-                        $upiId = $bankDetails['upi_id'] ?? 'kaustubh51-3@okicici';
-                        $accName = $bankDetails['account_name'] ?? 'DoodhBee SaaS';
-                        $upiUri = "upi://pay?pa=" . urlencode($upiId) . "&pn=" . urlencode($accName) . "&cu=INR";
-                        $qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=" . urlencode($upiUri);
-                    ?>
-                    <div class="p-3 bg-white rounded-xl flex items-center justify-center gap-4 text-slate-900">
-                        <img src="<?= $qrUrl ?>" alt="UPI QR Code" class="w-28 h-28 object-contain rounded-lg border border-slate-200" onerror="this.style.display='none'">
-                        <div class="space-y-1 text-left">
-                            <div class="text-[11px] font-black text-slate-900">Scan via any UPI App</div>
-                            <div class="flex flex-wrap gap-1 text-[10px] font-bold text-slate-500">
-                                <span class="px-1.5 py-0.5 rounded bg-slate-100">GPay</span>
-                                <span class="px-1.5 py-0.5 rounded bg-slate-100">PhonePe</span>
-                                <span class="px-1.5 py-0.5 rounded bg-slate-100">Paytm</span>
-                                <span class="px-1.5 py-0.5 rounded bg-slate-100">BHIM</span>
-                            </div>
-                            <a href="<?= e($upiUri) ?>" class="inline-block mt-2 text-[10px] font-black text-blue-600 hover:underline">
-                                ↗ Pay directly on Mobile
-                            </a>
-                        </div>
-                    </div>
-
-                    <div class="pt-3 border-t border-slate-800 space-y-2 text-xs">
-                        <div class="text-[10px] font-black uppercase text-slate-400">Direct Bank Transfer (IMPS / NEFT)</div>
-                        <div class="grid grid-cols-2 gap-2 text-[11px]">
-                            <div>
-                                <span class="text-slate-400 block text-[10px]">Beneficiary Name</span>
-                                <span class="font-bold text-slate-200"><?= e($bankDetails['account_name'] ?? 'Shri Ram Open Source Technologies') ?></span>
-                            </div>
-                            <div>
-                                <span class="text-slate-400 block text-[10px]">Bank</span>
-                                <span class="font-bold text-slate-200"><?= e($bankDetails['bank_name'] ?? 'Saraswat Co-operative Bank Ltd.') ?></span>
-                            </div>
-                            <div>
-                                <span class="text-slate-400 block text-[10px]">Account No</span>
-                                <span class="font-mono font-bold text-slate-200"><?= e($bankDetails['account_number'] ?? '610000000039273') ?></span>
-                            </div>
-                            <div>
-                                <span class="text-slate-400 block text-[10px]">IFSC Code</span>
-                                <span class="font-mono font-bold text-slate-200"><?= e($bankDetails['ifsc_code'] ?? 'srcb0000370') ?></span>
-                            </div>
-                        </div>
+            <div class="bg-slate-50 p-6 rounded-2xl border border-slate-200 space-y-4">
+                <!-- Billing Cycle Toggle -->
+                <div>
+                    <label class="block text-xs font-black uppercase text-slate-700 mb-2">
+                        Billing Cycle
+                    </label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="p-2.5 rounded-xl border-2 border-slate-200 bg-white hover:border-blue-500 cursor-pointer transition text-center">
+                            <input type="radio" name="billing_cycle" value="monthly" <?= ($currentCycle !== 'yearly') ? 'checked' : '' ?> onchange="refreshPlanCards()" class="mr-1 text-blue-600">
+                            <span class="font-black text-xs text-slate-900">Monthly</span>
+                        </label>
+                        <label class="p-2.5 rounded-xl border-2 border-slate-200 bg-white hover:border-emerald-500 cursor-pointer transition text-center">
+                            <input type="radio" name="billing_cycle" value="yearly" <?= ($currentCycle === 'yearly') ? 'checked' : '' ?> onchange="refreshPlanCards()" class="mr-1 text-emerald-600">
+                            <span class="font-black text-xs text-slate-900">Yearly (Save ~17%)</span>
+                        </label>
                     </div>
                 </div>
 
-                <!-- STEP 2: PLAN PICKER & SUBMIT UTR -->
-                <div class="bg-slate-50 p-6 rounded-2xl border border-slate-200 space-y-4">
-                    <div class="flex items-center justify-between pb-3 border-b border-slate-200">
-                        <span class="text-[11px] font-black uppercase tracking-wider text-blue-700">Step 2: Choose Plan & Submit UTR</span>
-                        <span class="text-xs text-slate-500">UTR Verification</span>
-                    </div>
-
-                    <form method="POST" action="<?= url('/subscription/request-upgrade') ?>" class="space-y-4" id="plan-request-form">
-                        <?= \App\Core\Auth::csrfField() ?>
-
-                        <!-- Billing Cycle Toggle -->
-                        <div>
-                            <label class="block text-xs font-black uppercase text-slate-700 mb-2">
-                                Billing Cycle
-                            </label>
-                            <div class="grid grid-cols-2 gap-2">
-                                <label class="p-2.5 rounded-xl border-2 border-slate-200 bg-white hover:border-blue-500 cursor-pointer transition text-center">
-                                    <input type="radio" name="billing_cycle" value="monthly" <?= ($currentCycle !== 'yearly') ? 'checked' : '' ?> onchange="refreshPlanCards()" class="mr-1 text-blue-600">
-                                    <span class="font-black text-xs text-slate-900">Monthly</span>
-                                </label>
-                                <label class="p-2.5 rounded-xl border-2 border-slate-200 bg-white hover:border-emerald-500 cursor-pointer transition text-center">
-                                    <input type="radio" name="billing_cycle" value="yearly" <?= ($currentCycle === 'yearly') ? 'checked' : '' ?> onchange="refreshPlanCards()" class="mr-1 text-emerald-600">
-                                    <span class="font-black text-xs text-slate-900">Yearly (Save ~17%)</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <!-- Named Plan Cards -->
-                        <div>
-                            <label class="block text-xs font-black uppercase text-slate-700 mb-2">
-                                Select Subscription Pack
-                            </label>
-                            <div class="space-y-2">
-                                <?php foreach ($paidPlans as $pp): ?>
-                                    <?php
-                                        $pid = (int)$pp['id'];
-                                        $isCurrent = ($pid === $currentPlanId && $isPaidActive);
-                                    ?>
-                                    <label class="block p-3.5 rounded-xl border-2 border-slate-200 bg-white hover:border-blue-500 cursor-pointer transition plan-card" data-plan-id="<?= $pid ?>">
-                                        <div class="flex items-center justify-between gap-2">
-                                            <div class="flex items-center gap-2.5">
-                                                <input type="radio" name="plan_id" value="<?= $pid ?>" <?= $pid === $defaultSelectedPlanId ? 'checked' : '' ?> onchange="refreshPlanCards()" class="text-blue-600">
-                                                <div>
-                                                    <div class="font-black text-xs text-slate-900 flex items-center gap-1.5">
-                                                        <span><?= e($pp['name']) ?></span>
-                                                        <?php if ($isCurrent): ?>
-                                                            <span class="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[9px] uppercase font-black">Current</span>
-                                                        <?php endif; ?>
-                                                    </div>
-                                                    <div class="text-[11px] text-slate-500">Up to <strong><?= (int)$pp['customer_limit'] ?></strong> active customers</div>
-                                                </div>
+                <!-- Named Plan Cards -->
+                <div>
+                    <label class="block text-xs font-black uppercase text-slate-700 mb-2">
+                        Select Subscription Pack
+                    </label>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <?php foreach ($paidPlans as $pp): ?>
+                            <?php
+                                $pid = (int)$pp['id'];
+                                $isCurrent = ($pid === $currentPlanId && $isPaidActive);
+                            ?>
+                            <label class="block p-4 rounded-xl border-2 border-slate-200 bg-white hover:border-blue-500 cursor-pointer transition plan-card" data-plan-id="<?= $pid ?>">
+                                <div class="flex items-start justify-between gap-2">
+                                    <div class="flex items-start gap-2.5">
+                                        <input type="radio" name="plan_id" value="<?= $pid ?>" <?= $pid === $defaultSelectedPlanId ? 'checked' : '' ?> onchange="refreshPlanCards()" class="mt-0.5 text-blue-600">
+                                        <div>
+                                            <div class="font-black text-sm text-slate-900 flex items-center gap-1.5">
+                                                <span><?= e($pp['name']) ?></span>
+                                                <?php if ($isCurrent): ?>
+                                                    <span class="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[9px] uppercase font-black">Current</span>
+                                                <?php endif; ?>
                                             </div>
-                                            <div class="text-right">
-                                                <div class="font-black text-sm text-blue-700 plan-card-price" data-plan-id="<?= $pid ?>">
-                                                    <?= formatMoney((float)$pp['monthly_price'], $currency) ?>
-                                                </div>
-                                                <div class="text-[10px] font-bold uppercase text-slate-400 plan-card-action" data-plan-id="<?= $pid ?>"></div>
-                                            </div>
+                                            <div class="text-[11px] text-slate-500 mt-0.5">Up to <strong><?= (int)$pp['customer_limit'] ?></strong> active customers</div>
                                         </div>
-                                        <div class="text-[10px] text-rose-600 font-semibold mt-1 hidden plan-card-reason" data-plan-id="<?= $pid ?>"></div>
-                                    </label>
-                                <?php endforeach; ?>
-                            </div>
-                        </div>
-
-                        <!-- Amount & GST Preview -->
-                        <div class="p-3.5 rounded-xl bg-blue-50 border border-blue-200 space-y-1.5 text-xs">
-                            <div class="flex items-center justify-between text-slate-600">
-                                <span>Base Plan Price:</span>
-                                <span class="font-bold" id="display-base-amount">—</span>
-                            </div>
-                            <div class="flex items-center justify-between text-slate-600" id="display-gst-row">
-                                <span id="display-gst-label">GST (18% Exclusive):</span>
-                                <span class="font-bold" id="display-gst-amount">—</span>
-                            </div>
-                            <div class="flex items-center justify-between pt-1 border-t border-blue-200">
-                                <span class="font-black text-slate-800">Total Payable (Incl. GST):</span>
-                                <span class="text-base font-black text-blue-800" id="display-amount">—</span>
-                            </div>
-                            <p class="text-[11px] text-blue-900" id="plan-action-note"></p>
-                            <p class="text-[10px] text-slate-500">
-                                Tax Invoice issued by <strong><?= e($pricing['company_legal_name'] ?? 'Shri Ram Open Source Technologies') ?></strong> (GSTIN: <span class="font-mono"><?= e($pricing['company_gstin'] ?? '27AARPE1865G1ZJ') ?></span>) via Email & WhatsApp.
-                            </p>
-                        </div>
-
-                        <?php if (!empty($razorpay['configured'])): ?>
-                        <!-- Instant Online Payment via Razorpay -->
-                        <div class="p-4 rounded-xl bg-gradient-to-r from-indigo-50 to-blue-50 border-2 border-indigo-200 space-y-2.5">
-                            <div class="flex items-center justify-between">
-                                <span class="text-xs font-black uppercase tracking-wider text-indigo-900">⚡ Instant Online Checkout</span>
-                                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">UPI • Cards • NetBanking</span>
-                            </div>
-                            <div id="razorpay-error-box" class="hidden p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-[11px] font-bold"></div>
-                            <button type="button" id="razorpay-pay-btn" onclick="startRazorpayCheckout()" class="tap-target w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-400 text-white rounded-xl text-xs font-black shadow-md transition flex items-center justify-center gap-2">
-                                <span>💳 Pay Online with Razorpay</span>
-                            </button>
-                            <p class="text-[10px] text-indigo-800 text-center">Instant activation & automatic GST Tax Invoice on payment completion.</p>
-                        </div>
-                        <div class="relative flex py-1 items-center">
-                            <div class="flex-grow border-t border-slate-200"></div>
-                            <span class="flex-shrink mx-3 text-[10px] font-black uppercase text-slate-400">Or Submit Manual UTR</span>
-                            <div class="flex-grow border-t border-slate-200"></div>
-                        </div>
-                        <?php endif; ?>
-
-                        <!-- Payment Method -->
-                        <div>
-                            <label class="block text-xs font-black uppercase text-slate-700 mb-1">
-                                Payment Method Used
+                                    </div>
+                                </div>
+                                <div class="mt-3 pt-2.5 border-t border-slate-100 flex items-baseline justify-between">
+                                    <div class="font-black text-sm text-blue-700 plan-card-price" data-plan-id="<?= $pid ?>">
+                                        <?= formatMoney((float)$pp['monthly_price'], $currency) ?>
+                                    </div>
+                                    <div class="text-[10px] font-bold uppercase text-slate-400 plan-card-action" data-plan-id="<?= $pid ?>"></div>
+                                </div>
+                                <div class="text-[10px] text-rose-600 font-semibold mt-1.5 hidden plan-card-reason" data-plan-id="<?= $pid ?>"></div>
                             </label>
-                            <select name="payment_method" class="w-full text-xs font-bold px-3 py-2 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500">
-                                <option value="upi">UPI (GPay / PhonePe / Paytm / BHIM)</option>
-                                <option value="bank_transfer">Direct Bank Transfer (IMPS / NEFT / RTGS)</option>
-                                <option value="cash">Cash / Direct Admin Settlement</option>
-                                <option value="other">Other / Cheque</option>
-                            </select>
-                        </div>
-
-                        <!-- Transaction Reference / UTR -->
-                        <div>
-                            <label class="block text-xs font-black uppercase text-slate-700 mb-1">
-                                UTR / Transaction Reference ID <span class="text-rose-500">*</span>
-                            </label>
-                            <input type="text" name="utr_number" required placeholder="e.g. 12-digit UTR like 432109876543" class="w-full text-xs font-mono font-bold px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 text-slate-900">
-                            <p class="text-[10px] text-slate-500 mt-1">Found in your payment app's receipt details.</p>
-                        </div>
-
-                        <!-- Optional Notes -->
-                        <div>
-                            <label class="block text-xs font-black uppercase text-slate-700 mb-1">
-                                Optional Notes / Payer Phone
-                            </label>
-                            <input type="text" name="notes" placeholder="e.g. Paid from PhonePe number 9876543210" class="w-full text-xs px-3.5 py-2 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 text-slate-900">
-                        </div>
-
-                        <button type="submit" id="submit-plan-btn" class="tap-target w-full py-3.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white rounded-xl text-xs font-black shadow-md transition flex items-center justify-center gap-2">
-                            <span>⚡ Submit Payment for Verification</span>
-                        </button>
-                    </form>
+                        <?php endforeach; ?>
+                    </div>
                 </div>
+
+                <!-- Amount & GST Preview -->
+                <div class="p-4 rounded-xl bg-blue-50 border border-blue-200 space-y-1.5 text-xs">
+                    <div class="flex items-center justify-between text-slate-600">
+                        <span>Base Plan Price:</span>
+                        <span class="font-bold" id="display-base-amount">—</span>
+                    </div>
+                    <div class="flex items-center justify-between text-slate-600" id="display-gst-row">
+                        <span id="display-gst-label">GST (18% Exclusive):</span>
+                        <span class="font-bold" id="display-gst-amount">—</span>
+                    </div>
+                    <div class="flex items-center justify-between pt-1.5 border-t border-blue-200">
+                        <span class="font-black text-slate-800">Total Payable (Incl. GST):</span>
+                        <span class="text-lg font-black text-blue-800" id="display-amount">—</span>
+                    </div>
+                    <p class="text-[11px] text-blue-900" id="plan-action-note"></p>
+                    <p class="text-[10px] text-slate-500">
+                        Tax Invoice issued by <strong><?= e($pricing['company_legal_name'] ?? 'Shri Ram Open Source Technologies') ?></strong> (GSTIN: <span class="font-mono"><?= e($pricing['company_gstin'] ?? '27AARPE1865G1ZJ') ?></span>) via Email & WhatsApp.
+                    </p>
+                </div>
+
+                <?php if (!empty($razorpay['configured'])): ?>
+                <!-- Instant Online Payment via Razorpay -->
+                <div class="p-4 rounded-xl bg-gradient-to-r from-indigo-50 to-blue-50 border-2 border-indigo-200 space-y-2.5">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-black uppercase tracking-wider text-indigo-900">⚡ Razorpay Secure Checkout</span>
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">UPI • Cards • NetBanking</span>
+                    </div>
+                    <div id="razorpay-error-box" class="hidden p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-[11px] font-bold"></div>
+                    <button type="button" id="razorpay-pay-btn" onclick="startRazorpayCheckout()" class="tap-target w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-400 text-white rounded-xl text-sm font-black shadow-md transition flex items-center justify-center gap-2">
+                        <span>💳 Pay Online with Razorpay</span>
+                    </button>
+                    <p class="text-[10px] text-indigo-800 text-center">Instant plan activation & automatic GST Tax Invoice via Email & WhatsApp.</p>
+                </div>
+                <?php else: ?>
+                <div class="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900">
+                    <strong>Razorpay Gateway Not Configured:</strong> Please ask the Super Admin to enable Razorpay and configure API keys in the Admin Portal.
+                </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>
-
-    <!-- Subscription Requests History -->
-    <?php if (!empty($upgradeRequests)): ?>
-    <div class="bg-white rounded-3xl border border-slate-200 p-6 md:p-8 shadow-sm space-y-4">
-        <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
-            <span>📋 Subscription Request History</span>
-        </h3>
-
-        <div class="overflow-x-auto">
-            <table class="w-full text-left text-xs text-slate-600">
-                <thead class="bg-slate-50 text-slate-400 font-bold uppercase text-[10px] border-b border-slate-200">
-                    <tr>
-                        <th class="p-3">Date</th>
-                        <th class="p-3">Plan</th>
-                        <th class="p-3">Capacity</th>
-                        <th class="p-3">Amount</th>
-                        <th class="p-3">UTR / Ref</th>
-                        <th class="p-3 text-center">Status</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                    <?php foreach ($upgradeRequests as $req): ?>
-                        <tr class="hover:bg-slate-50/50">
-                            <td class="p-3 font-medium whitespace-nowrap">
-                                <?= formatDate($req['created_at'], 'd M Y, h:i A') ?>
-                            </td>
-                            <td class="p-3 font-bold text-slate-900">
-                                <?php
-                                    $rName = $req['plan_name'] ?: ('+' . $req['blocks_requested'] . ' Block(s)');
-                                    $rType = ucfirst((string)($req['request_type'] ?? 'plan'));
-                                    $rCycle = ucfirst((string)($req['billing_cycle'] ?? 'monthly'));
-                                ?>
-                                <?= e($rName) ?>
-                                <span class="text-[10px] font-bold text-blue-700 block"><?= e($rCycle) ?> • <?= e($rType) ?></span>
-                            </td>
-                            <td class="p-3 text-emerald-700 font-bold">
-                                <?= (int)($req['customer_limit'] ?: $req['customer_slots']) ?> Customers
-                            </td>
-                            <td class="p-3 font-black text-slate-900">
-                                <?= formatMoney((float)$req['amount'], $currency) ?>
-                            </td>
-                            <td class="p-3 font-mono text-[11px]">
-                                <span class="bg-slate-100 px-2 py-0.5 rounded font-black"><?= e($req['utr_number']) ?></span>
-                                <?php if (!empty($req['notes'])): ?>
-                                    <div class="text-[10px] text-slate-400 mt-0.5"><?= e($req['notes']) ?></div>
-                                <?php endif; ?>
-                            </td>
-                            <td class="p-3 text-center whitespace-nowrap">
-                                <?php if ($req['status'] === 'approved'): ?>
-                                    <span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300">
-                                        ✓ Approved
-                                    </span>
-                                <?php elseif ($req['status'] === 'pending'): ?>
-                                    <span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-amber-100 text-amber-800 border border-amber-300">
-                                        ⏳ Pending
-                                    </span>
-                                <?php else: ?>
-                                    <span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase bg-rose-100 text-rose-800 border border-rose-300" title="<?= e($req['admin_notes'] ?? '') ?>">
-                                        ✗ Rejected
-                                    </span>
-                                    <?php if (!empty($req['admin_notes'])): ?>
-                                        <div class="text-[10px] text-rose-600 mt-0.5"><?= e($req['admin_notes']) ?></div>
-                                    <?php endif; ?>
-                                <?php endif; ?>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
-    <?php endif; ?>
 
     <!-- Subscription GST Tax Invoices -->
     <?php if (!empty($subInvoices)): ?>
@@ -588,7 +361,6 @@ function refreshPlanCards() {
     const gstElem = document.getElementById('display-gst-amount');
     const amountElem = document.getElementById('display-amount');
     const noteElem = document.getElementById('plan-action-note');
-    const submitBtn = document.getElementById('submit-plan-btn');
     const rzpBtn = document.getElementById('razorpay-pay-btn');
 
     if (selectedRadio && !selectedRadio.disabled) {
@@ -601,7 +373,6 @@ function refreshPlanCards() {
             if (gstRow) gstRow.style.display = Number(selPrev.gst_percentage) > 0 ? 'flex' : 'none';
             if (amountElem) amountElem.innerText = PLAN_CURRENCY + Number(selPrev.amount).toFixed(2);
             if (noteElem) noteElem.innerText = selPrev.note || '';
-            if (submitBtn) submitBtn.disabled = false;
             if (rzpBtn) rzpBtn.disabled = false;
             return;
         }
@@ -611,7 +382,6 @@ function refreshPlanCards() {
     if (gstElem) gstElem.innerText = '—';
     if (amountElem) amountElem.innerText = '—';
     if (noteElem) noteElem.innerText = 'No eligible plan available for your current active customer count.';
-    if (submitBtn) submitBtn.disabled = true;
     if (rzpBtn) rzpBtn.disabled = true;
 }
 
@@ -644,7 +414,7 @@ async function startRazorpayCheckout() {
         return;
     }
     if (typeof Razorpay === 'undefined') {
-        showRzpError('Razorpay Checkout script failed to load. Check internet connection or use manual UTR.');
+        showRzpError('Razorpay Checkout script failed to load. Please check your internet connection.');
         return;
     }
 
@@ -738,17 +508,4 @@ async function startRazorpayCheckout() {
     }
 }
 <?php endif; ?>
-
-function copyToClipboard(elementId, btn) {
-    const text = document.getElementById(elementId).innerText.trim();
-    navigator.clipboard.writeText(text).then(() => {
-        const originalText = btn.innerText;
-        btn.innerText = 'Copied!';
-        btn.classList.add('bg-emerald-600');
-        setTimeout(() => {
-            btn.innerText = originalText;
-            btn.classList.remove('bg-emerald-600');
-        }, 2000);
-    });
-}
 </script>

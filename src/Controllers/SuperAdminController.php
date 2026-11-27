@@ -25,11 +25,7 @@ final class SuperAdminController
         $statsRes = ApiClient::get('/api/admin/stats');
         $stats = $statsRes['data'] ?? [];
 
-        // 4. Fetch subscription upgrade requests via REST API
-        $subReqRes = ApiClient::get('/api/admin/subscription-requests');
-        $upgradeRequests = $subReqRes['data'] ?? [];
-
-        // 5. Fetch subscription plans via REST API
+        // 4. Fetch subscription plans via REST API
         $plansRes = ApiClient::get('/api/admin/plans');
         $plans = $plansRes['data'] ?? [];
 
@@ -44,7 +40,6 @@ final class SuperAdminController
             'admin' => Auth::admin(),
             'tenants' => $tenants,
             'systemSettings' => $systemSettings,
-            'upgradeRequests' => $upgradeRequests,
             'plans' => $plans,
             'subscriptionInvoices' => $subscriptionInvoices,
             'totalTenants' => $totalTenants,
@@ -73,11 +68,6 @@ final class SuperAdminController
             'company_address' => trim((string)$request->post('company_address', 'Maharashtra, India')),
             'currency_symbol' => trim((string)$request->post('currency_symbol', '₹')),
             'platform_name' => trim((string)$request->post('platform_name', 'DoodhBee SaaS')),
-            'payment_upi_id' => trim((string)$request->post('payment_upi_id', '')),
-            'payment_account_name' => trim((string)$request->post('payment_account_name', '')),
-            'payment_bank_name' => trim((string)$request->post('payment_bank_name', '')),
-            'payment_account_number' => trim((string)$request->post('payment_account_number', '')),
-            'payment_ifsc_code' => trim((string)$request->post('payment_ifsc_code', '')),
             'razorpay_enabled' => $request->post('razorpay_enabled') ? 1 : 0,
             'razorpay_key_id' => trim((string)$request->post('razorpay_key_id', '')),
         ];
@@ -177,47 +167,6 @@ final class SuperAdminController
             Auth::flash('error', $res['error'] ?? 'Failed to toggle plan.');
         }
         Response::redirect(url('/admin#plans-section'));
-    }
-
-    public function approveUpgradeRequest(Request $request, array $params): void
-    {
-        $requestId = (int)($params['id'] ?? 0);
-        $adminNotes = trim((string)$request->post('admin_notes', 'Verified payment in bank/UPI account'));
-
-        $res = ApiClient::post("/api/admin/subscription-requests/{$requestId}/approve", [
-            'admin_notes' => $adminNotes,
-        ]);
-
-        if ($res['success']) {
-            $invNo = $res['data']['invoice']['invoice_number'] ?? null;
-            $msg = $res['message'] ?? 'Subscription upgrade approved and quota added successfully.';
-            if ($invNo) {
-                $msg .= " GST Tax Invoice {$invNo} generated and dispatched.";
-            }
-            Auth::flash('success', $msg);
-        } else {
-            Auth::flash('error', $res['error'] ?? 'Failed to approve upgrade request.');
-        }
-
-        Response::redirect(url('/admin#subscription-requests'));
-    }
-
-    public function rejectUpgradeRequest(Request $request, array $params): void
-    {
-        $requestId = (int)($params['id'] ?? 0);
-        $reason = trim((string)$request->post('reason', 'Payment could not be verified in bank/UPI account'));
-
-        $res = ApiClient::post("/api/admin/subscription-requests/{$requestId}/reject", [
-            'reason' => $reason,
-        ]);
-
-        if ($res['success']) {
-            Auth::flash('success', 'Subscription upgrade request rejected.');
-        } else {
-            Auth::flash('error', $res['error'] ?? 'Failed to reject upgrade request.');
-        }
-
-        Response::redirect(url('/admin#subscription-requests'));
     }
 
     public function subscriptionInvoicePdf(Request $request, array $params): void

@@ -1093,21 +1093,22 @@ runTest("SaaS Plans: Named Packs, Early Renewal, Mid-Cycle Upgrade, Downgrade Wi
             throw new \Exception("Soft downgrade on expiry failed: " . json_encode($expiredQuota));
         }
 
-        // 8. UTR request + SuperAdmin approval for Pro (Yearly): 12000 + 18% GST (2160) = 14160 + Tax Invoice + Email/WA
-        $utr = 'PLAN' . time();
-        $req = $quotaService->createPlanRequest(2, (int)$pro['id'], $utr, 'upi', 'Pro yearly test', null, 'yearly');
-        if (($req['plan_name'] ?? '') !== 'Pro' || ($req['billing_cycle'] ?? '') !== 'yearly' || abs((float)$req['base_amount'] - 12000.0) > 0.01 || abs((float)$req['gst_amount'] - 2160.0) > 0.01 || abs((float)$req['amount'] - 14160.0) > 0.01) {
-            throw new \Exception("Plan UTR request GST mismatch: " . json_encode($req));
+        // 8. Yearly Pro activation (12000 + 18% GST = 14160) via Razorpay + Tax Invoice + Email/WA dispatch
+        $q5 = $quotaService->applyPlanSubscription(2, (int)$pro['id'], 'yearly', [
+            'payment_method' => 'razorpay',
+            'utr_number' => 'pay_pro_' . time(),
+        ]);
+        if (($q5['plan_code'] ?? '') !== 'pro' || ($q5['max_allowed'] ?? 0) !== 1000) {
+            throw new \Exception("Pro yearly activation mismatch: " . json_encode($q5));
         }
-        $approved = $quotaService->approveUpgradeRequest((int)$req['id'], 1, 'Verified Pro payment');
-        if (($approved['quota']['plan_code'] ?? '') !== 'pro' || ($approved['quota']['max_allowed'] ?? 0) !== 1000) {
-            throw new \Exception("Plan UTR approval mismatch: " . json_encode($approved));
-        }
-        $inv = $approved['invoice'] ?? null;
+        $inv = $quotaService->getLastGeneratedInvoice();
         if (
             !$inv
             || ($inv['seller_name'] ?? '') !== 'Shri Ram Open Source Technologies'
             || ($inv['seller_gstin'] ?? '') !== '27AARPE1865G1ZJ'
+            || ($inv['billing_cycle'] ?? '') !== 'yearly'
+            || abs((float)$inv['base_amount'] - 12000.0) > 0.01
+            || abs((float)$inv['gst_amount'] - 2160.0) > 0.01
             || abs((float)$inv['total_amount'] - 14160.0) > 0.01
             || ($inv['email_status'] ?? '') !== 'sent'
             || empty($inv['whatsapp_url'])
@@ -1125,8 +1126,6 @@ runTest("SaaS Plans: Named Packs, Early Renewal, Mid-Cycle Upgrade, Downgrade Wi
         if (substr($pdfBytes, 0, 4) !== '%PDF') {
             throw new \Exception("Subscription tax invoice PDF generation failed");
         }
-
-        $db->execute("DELETE FROM subscription_upgrade_requests WHERE id = ?", [(int)$req['id']]);
     } finally {
         $db->execute("DELETE FROM subscription_invoices WHERE tenant_id = 2");
         if ($origSub) {

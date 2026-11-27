@@ -1,6 +1,7 @@
 /vendor/
 composer.phar
 .env
+.env.production
 .env.php
 .env.*.php
 /public/uploads/*
